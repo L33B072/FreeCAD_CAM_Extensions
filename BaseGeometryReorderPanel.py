@@ -172,6 +172,17 @@ class BaseGeometryReorderPanel:
         
         # Update the operation's Base property
         try:
+            # CRITICAL: Set HandleMultipleFeatures to 'Individually' to respect our custom order
+            # When set to 'Collectively', FreeCAD optimizes the toolpath order automatically
+            # When set to 'Individually', it processes each base geometry in the order specified
+            handle_features_changed = False
+            if hasattr(self.operation, 'HandleMultipleFeatures'):
+                old_value = self.operation.HandleMultipleFeatures
+                if old_value != 'Individually':
+                    self.operation.HandleMultipleFeatures = 'Individually'
+                    handle_features_changed = True
+                    FreeCAD.Console.PrintMessage(f"Changed HandleMultipleFeatures from '{old_value}' to 'Individually'\n")
+            
             # CRITICAL: Disable UseStartPoint to respect our custom order
             # When UseStartPoint is True, FreeCAD optimizes the toolpath order
             # based on proximity to StartPoint, ignoring Base order
@@ -203,9 +214,14 @@ class BaseGeometryReorderPanel:
             # Recompute the entire document
             FreeCAD.ActiveDocument.recompute()
             
-            msg = "✓ Order applied! Toolpath follows your custom order."
+            msg = "✓ Order applied! Toolpath follows your custom sequence."
+            changes = []
+            if handle_features_changed:
+                changes.append("HandleMultipleFeatures→Individually")
             if use_start_point_disabled:
-                msg += " (UseStartPoint disabled)"
+                changes.append("UseStartPoint→False")
+            if changes:
+                msg += f" ({', '.join(changes)})"
             
             self.info_label.setText(msg)
             self.info_label.setStyleSheet("QLabel { color: green; font-weight: bold; }")
