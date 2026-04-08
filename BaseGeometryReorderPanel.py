@@ -172,17 +172,38 @@ class BaseGeometryReorderPanel:
         
         # Update the operation's Base property
         try:
+            # Set the new Base order
             self.operation.Base = new_base
+            
+            # Mark the operation as touched to force recomputation
+            self.operation.touch()
+            
+            # Recompute the operation itself
+            self.operation.recompute()
+            
+            # Find and recompute the parent Job if it exists
+            for obj in FreeCAD.ActiveDocument.Objects:
+                if hasattr(obj, 'Group') and self.operation in obj.Group:
+                    if hasattr(obj, 'Proxy') and hasattr(obj.Proxy, '__class__'):
+                        # This is likely the Job object
+                        FreeCAD.Console.PrintMessage(f"Recomputing parent Job: {obj.Label}\n")
+                        obj.touch()
+                        obj.recompute()
+                        break
+            
+            # Recompute the entire document
             FreeCAD.ActiveDocument.recompute()
             
-            self.info_label.setText("✓ Order applied successfully! Toolpath will be recomputed.")
+            self.info_label.setText("✓ Order applied successfully! Toolpath recomputed.")
             self.info_label.setStyleSheet("QLabel { color: green; font-weight: bold; }")
             
             FreeCAD.Console.PrintMessage(f"Base geometry order updated for {self.operation.Label}\n")
+            FreeCAD.Console.PrintMessage(f"New order: {[f'{b[0].Label}-{b[1]}' for b in new_base]}\n")
             
         except Exception as e:
             self.info_label.setText(f"✗ Error: {str(e)}")
             self.info_label.setStyleSheet("QLabel { color: red; font-weight: bold; }")
+            FreeCAD.Console.PrintError(f"Error applying order: {str(e)}\n")
             FreeCAD.Console.PrintError(f"Failed to update base geometry order: {e}\n")
     
     def accept(self):
