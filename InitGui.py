@@ -51,7 +51,10 @@ class CAMWorkbenchExtension:
                 original_initialize()
                 
                 # Add our commands to CAM workbench
-                cam_extensions_list = ["CAM_ShowOperationVariables"]
+                cam_extensions_list = [
+                    "CAM_ShowOperationVariables",
+                    "CAM_ReorderBaseGeometry"
+                ]
                 
                 # Add to a submenu in the CAM menu
                 self.cam_wb.appendMenu(["&CAM", "E&xtensions"], cam_extensions_list)

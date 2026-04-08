@@ -6,7 +6,13 @@
 
 Copy the entire `FreeCAD_CAM_Extensions` folder to your FreeCAD Mod directory:
 
-**Windows:**
+**Windows (FreeCAD 1.0+):**
+```
+C:\Users\[YourUsername]\AppData\Roaming\FreeCAD\v1-1\Mod\FreeCAD_CAM_Extensions
+```
+Note: The directory name changes with FreeCAD version (v0-21, v1-0, v1-1, etc.)
+
+**Windows (FreeCAD 0.21 and earlier):**
 ```
 C:\Users\[YourUsername]\AppData\Roaming\FreeCAD\Mod\FreeCAD_CAM_Extensions
 ```

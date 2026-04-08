@@ -25,7 +25,7 @@ Enhanced features for FreeCAD's CAM (Path) workbench.
 ### Method 2: Manual Installation
 1. Download or clone this repository
 2. Copy the entire folder to your FreeCAD Mod directory:
-   - **Windows**: `C:\Users\[YourUsername]\AppData\Roaming\FreeCAD\Mod\`
+   - **Windows (FreeCAD 1.0+)**: `C:\Users\[YourUsername]\AppData\Roaming\FreeCAD\v1-1\Mod\` (note: version number in path)
    - **Linux**: `~/.FreeCAD/Mod/`
    - **macOS**: `~/Library/Application Support/FreeCAD/Mod/`
 3. Restart FreeCAD
