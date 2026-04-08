@@ -160,6 +160,88 @@ class OperationVariablesPanel:
                 value = "N/A (no active operation)"
             variables[var_name] = (value, description)
         
+        # Add SetupSheet variables
+        setupsheet_vars = self.getSetupSheetVariables()
+        variables.update(setupsheet_vars)
+        
+        return variables
+    
+    def getSetupSheetVariables(self):
+        """Get variables from the SetupSheet
+        
+        Returns:
+            dict: Dictionary mapping variable names to (value, description) tuples
+        """
+        variables = {}
+        
+        if not self.job:
+            return variables
+        
+        # Try to find SetupSheet in the job
+        setupsheet = None
+        if hasattr(self.job, 'SetupSheet'):
+            setupsheet = self.job.SetupSheet
+        
+        if not setupsheet:
+            # Try to find it in the job's group
+            for obj in self.job.Group:
+                if hasattr(obj, 'TypeId') and 'Spreadsheet' in obj.TypeId:
+                    setupsheet = obj
+                    break
+        
+        if not setupsheet:
+            return variables
+        
+        # Read all cells from the SetupSheet
+        # SetupSheet typically has aliases in column A and values in column B
+        try:
+            # Get all cells with aliases
+            if hasattr(setupsheet, 'cells'):
+                cells = setupsheet.cells
+                for cell in cells:
+                    # Check if cell has an alias
+                    alias = setupsheet.getAlias(cell)
+                    if alias:
+                        # Get the value
+                        content = setupsheet.getContents(cell)
+                        display_value = setupsheet.get(cell)
+                        
+                        # Format the description
+                        description = f"SetupSheet: {cell}"
+                        
+                        # Format the value
+                        if display_value:
+                            value = str(display_value)
+                        else:
+                            value = str(content) if content else "N/A"
+                        
+                        # Add to variables dictionary
+                        variables[alias] = (value, description)
+            
+            # Alternative method: iterate through known cells
+            elif hasattr(setupsheet, 'getCellFromAlias'):
+                # Try common SetupSheet variables
+                common_aliases = [
+                    'ClearanceHeightOffset', 'SafeHeightOffset',
+                    'StartDepth', 'FinalDepth', 'StepDown',
+                    'HorizRapid', 'VertRapid', 'HorizFeed', 'VertFeed',
+                    'ToolDiameter', 'ToolNumber'
+                ]
+                
+                for alias in common_aliases:
+                    try:
+                        cell = setupsheet.getCellFromAlias(alias)
+                        if cell:
+                            content = setupsheet.get(cell)
+                            if content is not None:
+                                description = f"SetupSheet: {cell}"
+                                variables[alias] = (str(content), description)
+                    except:
+                        continue
+                        
+        except Exception as e:
+            FreeCAD.Console.PrintWarning(f"Error reading SetupSheet: {e}\n")
+        
         return variables
     
     def populateVariables(self):
