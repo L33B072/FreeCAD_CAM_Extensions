@@ -172,6 +172,15 @@ class BaseGeometryReorderPanel:
         
         # Update the operation's Base property
         try:
+            # CRITICAL: Disable UseStartPoint to respect our custom order
+            # When UseStartPoint is True, FreeCAD optimizes the toolpath order
+            # based on proximity to StartPoint, ignoring Base order
+            use_start_point_disabled = False
+            if hasattr(self.operation, 'UseStartPoint') and self.operation.UseStartPoint:
+                self.operation.UseStartPoint = False
+                use_start_point_disabled = True
+                FreeCAD.Console.PrintMessage(f"Disabled UseStartPoint to respect custom geometry order\n")
+            
             # Set the new Base order
             self.operation.Base = new_base
             
@@ -194,7 +203,11 @@ class BaseGeometryReorderPanel:
             # Recompute the entire document
             FreeCAD.ActiveDocument.recompute()
             
-            self.info_label.setText("✓ Order applied successfully! Toolpath recomputed.")
+            msg = "✓ Order applied! Toolpath follows your custom order."
+            if use_start_point_disabled:
+                msg += " (UseStartPoint disabled)"
+            
+            self.info_label.setText(msg)
             self.info_label.setStyleSheet("QLabel { color: green; font-weight: bold; }")
             
             FreeCAD.Console.PrintMessage(f"Base geometry order updated for {self.operation.Label}\n")
