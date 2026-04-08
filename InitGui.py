@@ -15,7 +15,16 @@ import FreeCADGui
 # Import and register commands immediately (available in all workbenches)
 import CAMExtensions_Commands
 
+# Note: ProfileOrderPatch is experimental and not currently used
+# import ProfileOrderPatch
+
 FreeCAD.Console.PrintMessage("CAM Extensions loaded - commands registered\n")
+
+# Note: Profile order patch is disabled in favor of the Split Profile tool
+# if ProfileOrderPatch.apply_profile_order_patch():
+#     FreeCAD.Console.PrintMessage("CAM Extensions: Profile order patch applied successfully\n")
+# else:
+#     FreeCAD.Console.PrintWarning("CAM Extensions: Profile order patch failed to apply\n")
 
 
 # Extend the CAM workbench to add our commands
@@ -53,7 +62,8 @@ class CAMWorkbenchExtension:
                 # Add our commands to CAM workbench
                 cam_extensions_list = [
                     "CAM_ShowOperationVariables",
-                    "CAM_ReorderBaseGeometry"
+                    "CAM_ReorderBaseGeometry",
+                    "CAM_SplitProfile"
                 ]
                 
                 # Add to a submenu in the CAM menu
