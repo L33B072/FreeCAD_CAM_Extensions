@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
+<package format="1" xmlns="https://wiki.freecad.org/Package_Metadata">
+  <name>CAM Extensions</name>
+  <description>Enhanced CAM workbench features including Operation Variables viewer and advanced toolpath linking controls</description>
+  <version>0.1.0</version>
+  <date>2026-04-08</date>
+  <maintainer email="your-email@example.com">L33B072</maintainer>
+  <license file="LICENSE">MIT</license>
+  <url type="repository" branch="main">https://github.com/L33B072/FreeCAD_CAM_Extensions</url>
+  <url type="readme">https://github.com/L33B072/FreeCAD_CAM_Extensions/blob/main/README.md</url>
+  <icon>Resources/icons/CAMExtensions.svg</icon>
+  
+  <content>
+    <workbench>
+      <classname>CAMExtensions</classname>
+      <subdirectory>./</subdirectory>
+    </workbench>
+  </content>
+  
+  <depend>
+    <workbench>Path</workbench>
+  </depend>
+  
+  <tag>CAM</tag>
+  <tag>Path</tag>
+  <tag>machining</tag>
+</package>
