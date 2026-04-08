@@ -25,7 +25,7 @@ class ShowOperationVariablesCommand:
     
     def Activated(self):
         """Execute when the command is activated"""
-        from . import OperationVariablesPanel
+        import OperationVariablesPanel
         
         # Get the active document
         doc = FreeCAD.ActiveDocument

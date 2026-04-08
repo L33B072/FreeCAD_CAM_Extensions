@@ -44,10 +44,10 @@ class CAMExtensionsWorkbench(FreeCADGui.Workbench):
     
     def Initialize(self):
         """This function is executed when FreeCAD starts"""
-        from . import OperationVariablesPanel
+        import OperationVariablesPanel
         
         # Import the command classes
-        from . import CAMExtensions_Commands
+        import CAMExtensions_Commands
         
         # List of command names
         self.list = ["CAM_ShowOperationVariables"]
