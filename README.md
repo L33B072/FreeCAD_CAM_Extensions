@@ -18,10 +18,19 @@ Enhanced features for FreeCAD's CAM (Path) workbench.
 - **Drag-and-drop interface** - Simply drag items to reorder them
 - **Quick buttons** - Move items up/down or to top/bottom with one click
 - **Visual feedback** - See exactly which geometry will be processed in which order
-- **Like Fusion 360's "Keep order as selected"** - FreeCAD now has similar functionality!
 - Works with any CAM operation that has Base geometry
+- **Note:** Due to FreeCAD's internal path optimization, this may not always affect the final toolpath order
 
-### 3. Advanced Toolpath Linking Controls (Planned)
+### 3. Split Profile Tool ⭐ **Recommended for Order Control**
+- **Guaranteed cutting order control** - Split a Profile into separate operations
+- **One operation per base geometry** - Each geometry becomes its own Profile operation
+- **Complete control** - Operations run in sequence, no optimization or reordering
+- **Inherits all settings** - Each new operation copies settings from the original
+- **Auto-naming** - Operations named Profile_001, Profile_002, etc.
+- **Like Fusion 360's workflow** - Similar to creating individual contour operations
+- **Most reliable solution** - When you need exact control over cutting sequence
+
+### 4. Advanced Toolpath Linking Controls (Planned)
 - Enhanced control over toolpath linking behavior
 - Coming soon
 
@@ -59,9 +68,25 @@ Enhanced features for FreeCAD's CAM (Path) workbench.
    - **Drag and drop** items to reorder them
    - Or use the **Move Up/Down/Top/Bottom** buttons
 5. Click **Apply New Order** to update the operation
-6. The toolpath will be recomputed in the new order!
+6. The operation will be recomputed
 
-**Pro tip:** The order in the list (top to bottom) is the order the tool will visit each geometry.
+**Note:** Due to FreeCAD's internal path optimization, the toolpath order may still be optimized. For guaranteed order control, use the **Split Profile Tool** instead.
+
+### Split Profile Tool ⭐ **For Guaranteed Order Control**
+1. Create a Profile operation with multiple base geometries
+2. **Arrange the base geometries in your desired order** using the Reorder Tool first (if needed)
+3. Select the Profile operation in the tree
+4. Go to **CAM → Extensions → Split Profile into Separate Operations**
+5. Review the list of base geometries that will be split
+6. Choose options:
+   - **Delete original Profile** (recommended - checked by default)
+   - **Auto-rename operations** (creates Profile_001, Profile_002, etc.)
+7. Click **Split Profile**
+8. Done! Each base geometry is now a separate Profile operation in sequence
+
+**Why use split?** Each operation runs independently in order with NO automatic reordering or optimization. You get complete control, just like creating individual contour operations in Fusion 360.
+
+**Pro tip:** The operations are inserted in the Job at the same position as the original Profile, maintaining your workflow order.
 
 ## Requirements
 
