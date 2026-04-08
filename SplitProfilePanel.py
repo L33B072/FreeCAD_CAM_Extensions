@@ -102,12 +102,9 @@ class SplitProfilePanel:
             doc = FreeCAD.ActiveDocument
             doc.openTransaction("Split Profile Operation")
             
-            # Find the parent Job
-            job = None
-            for obj in doc.Objects:
-                if hasattr(obj, 'Group') and self.operation in obj.Group:
-                    job = obj
-                    break
+            # Find the parent Job using FreeCAD's utility function
+            import PathScripts.PathUtils as PathUtils
+            job = PathUtils.findParentJob(self.operation)
             
             if not job:
                 raise Exception("Could not find parent Job for Profile operation")
