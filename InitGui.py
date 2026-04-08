@@ -47,7 +47,7 @@ class CAMExtensionsWorkbench(FreeCADGui.Workbench):
         from . import OperationVariablesPanel
         
         # Import the command classes
-        import CAMExtensions_Commands
+        from . import CAMExtensions_Commands
         
         # List of command names
         self.list = ["CAM_ShowOperationVariables"]
