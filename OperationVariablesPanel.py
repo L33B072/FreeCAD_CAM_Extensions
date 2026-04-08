@@ -183,60 +183,45 @@ class OperationVariablesPanel:
             setupsheet = self.job.SetupSheet
         
         if not setupsheet:
-            # Try to find it in the job's group
-            for obj in self.job.Group:
-                if hasattr(obj, 'TypeId') and 'Spreadsheet' in obj.TypeId:
-                    setupsheet = obj
-                    break
-        
-        if not setupsheet:
             return variables
         
-        # Read all cells from the SetupSheet
-        # SetupSheet typically has aliases in column A and values in column B
+        # SetupSheet is a FeaturePython object with direct properties
         try:
-            # Get all cells with aliases
-            if hasattr(setupsheet, 'cells'):
-                cells = setupsheet.cells
-                for cell in cells:
-                    # Check if cell has an alias
-                    alias = setupsheet.getAlias(cell)
-                    if alias:
-                        # Get the value
-                        content = setupsheet.getContents(cell)
-                        display_value = setupsheet.get(cell)
-                        
-                        # Format the description
-                        description = f"SetupSheet: {cell}"
-                        
-                        # Format the value
-                        if display_value:
-                            value = str(display_value)
-                        else:
-                            value = str(content) if content else "N/A"
-                        
-                        # Add to variables dictionary
-                        variables[alias] = (value, description)
-            
-            # Alternative method: iterate through known cells
-            elif hasattr(setupsheet, 'getCellFromAlias'):
-                # Try common SetupSheet variables
-                common_aliases = [
-                    'ClearanceHeightOffset', 'SafeHeightOffset',
-                    'StartDepth', 'FinalDepth', 'StepDown',
-                    'HorizRapid', 'VertRapid', 'HorizFeed', 'VertFeed',
-                    'ToolDiameter', 'ToolNumber'
+            # Get all properties from the SetupSheet
+            if hasattr(setupsheet, 'PropertiesList'):
+                # Properties to exclude (internal/UI properties)
+                exclude_props = [
+                    'Label', 'Label2', 'Proxy', 'ExpressionEngine', 
+                    'Visibility', 'CoolantModes'
                 ]
                 
-                for alias in common_aliases:
+                for prop in setupsheet.PropertiesList:
+                    # Skip excluded properties
+                    if prop in exclude_props:
+                        continue
+                    
                     try:
-                        cell = setupsheet.getCellFromAlias(alias)
-                        if cell:
-                            content = setupsheet.get(cell)
-                            if content is not None:
-                                description = f"SetupSheet: {cell}"
-                                variables[alias] = (str(content), description)
-                    except:
+                        value = getattr(setupsheet, prop)
+                        
+                        # Format the value
+                        if hasattr(value, 'UserString'):
+                            # It's a FreeCAD quantity (has units)
+                            value_str = value.UserString
+                        elif hasattr(value, 'Value'):
+                            # It's a quantity but try getting string representation
+                            value_str = str(value)
+                        else:
+                            value_str = str(value)
+                        
+                        # Create description
+                        description = f"SetupSheet property"
+                        
+                        # Add to variables with SetupSheet. prefix for clarity
+                        var_name = f"SetupSheet.{prop}"
+                        variables[var_name] = (value_str, description)
+                        
+                    except Exception as e:
+                        FreeCAD.Console.PrintWarning(f"Could not read property {prop}: {e}\n")
                         continue
                         
         except Exception as e:
