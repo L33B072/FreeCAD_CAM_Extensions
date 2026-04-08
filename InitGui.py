@@ -15,7 +15,7 @@ import FreeCADGui
 # Import and register commands immediately (available in all workbenches)
 import CAMExtensions_Commands
 
-FreeCAD.Console.PrintMessage("CAM Extensions loaded - commands available in CAM workbench\n")
+FreeCAD.Console.PrintMessage("CAM Extensions loaded - commands registered\n")
 
 
 # Extend the CAM workbench to add our commands
@@ -23,10 +23,22 @@ class CAMWorkbenchExtension:
     """Extension to add commands to the CAM workbench"""
     
     def __init__(self):
-        # Get the original CAM workbench
-        self.cam_wb = FreeCADGui.getWorkbench("PathWorkbench")
-        if self.cam_wb:
-            self.extend_cam_workbench()
+        # Try different possible names for the CAM/Path workbench
+        cam_wb_names = ["Path", "PathWorkbench", "CAM", "CAMWorkbench"]
+        self.cam_wb = None
+        
+        for name in cam_wb_names:
+            try:
+                self.cam_wb = FreeCADGui.getWorkbench(name)
+                if self.cam_wb:
+                    FreeCAD.Console.PrintMessage(f"CAM Extensions: Found CAM workbench as '{name}'\n")
+                    self.extend_cam_workbench()
+                    break
+            except:
+                continue
+        
+        if not self.cam_wb:
+            FreeCAD.Console.PrintMessage("CAM Extensions: Will extend CAM workbench when it's activated\n")
     
     def extend_cam_workbench(self):
         """Add our commands to the CAM workbench menus and toolbars"""
@@ -42,9 +54,9 @@ class CAMWorkbenchExtension:
                 cam_extensions_list = ["CAM_ShowOperationVariables"]
                 
                 # Add to a submenu in the CAM menu
-                self.cam_wb.appendMenu(["CAM", "E&xtensions"], cam_extensions_list)
+                self.cam_wb.appendMenu(["&CAM", "E&xtensions"], cam_extensions_list)
                 
-                # Optionally add to toolbar
+                # Add to toolbar
                 self.cam_wb.appendToolbar("CAM Extensions", cam_extensions_list)
                 
                 FreeCAD.Console.PrintMessage("CAM Extensions commands added to CAM workbench\n")
@@ -61,4 +73,4 @@ class CAMWorkbenchExtension:
 try:
     extension = CAMWorkbenchExtension()
 except Exception as e:
-    FreeCAD.Console.PrintWarning(f"CAM Extensions: {e}\n")
+    FreeCAD.Console.PrintWarning(f"CAM Extensions initialization: {e}\n")
