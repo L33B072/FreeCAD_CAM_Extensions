@@ -123,8 +123,8 @@ class SplitProfilePanel:
             
             for i, base_item in enumerate(self.operation.Base):
                 # Create new Profile operation
-                import Path.Op.Gui.Profile as ProfileGui
-                new_op = ProfileGui.Create('Profile')
+                import Path.Op.Profile as PathProfile
+                new_op = PathProfile.Create('Profile', obj=None, parentJob=job)
                 
                 # Set the base geometry (just this one)
                 new_op.Base = [base_item]
@@ -132,7 +132,7 @@ class SplitProfilePanel:
                 # Copy all properties from original
                 self.copyProperties(self.operation, new_op)
                 
-                # Rename if requested
+                # Set the name
                 if self.rename_checkbox.isChecked():
                     new_op.Label = f"{base_name}_{i+1:03d}"
                 else:
@@ -141,16 +141,20 @@ class SplitProfilePanel:
                 new_operations.append(new_op)
                 FreeCAD.Console.PrintMessage(f"  Created: {new_op.Label} for {base_item[0].Label}-{base_item[1]}\n")
             
-            # Add new operations to Job in the same position as the original
+            # Check if operations were auto-added to the job (they should be)
+            # If not in Job, we'll manually add them at the correct position
             job_group = list(job.Group)
             
             # Remove the original if requested
-            if self.delete_original_checkbox.isChecked():
+            if self.delete_original_checkbox.isChecked() and self.operation in job_group:
                 job_group.remove(self.operation)
+                original_index = original_index  # Position stays the same after removal
             
-            # Insert new operations at the original position
+            # Check which operations need to be added
             for i, new_op in enumerate(new_operations):
-                job_group.insert(original_index + i, new_op)
+                if new_op not in job_group:
+                    # Insert at the appropriate position
+                    job_group.insert(original_index + i, new_op)
             
             job.Group = job_group
             
