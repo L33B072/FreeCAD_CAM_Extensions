@@ -247,4 +247,4 @@ class OperationVariablesPanel:
     
     def getStandardButtons(self):
         """Define which buttons to show"""
-        return int(QtGui.QDialogButtonBox.Close)
+        return QtGui.QDialogButtonBox.Close
