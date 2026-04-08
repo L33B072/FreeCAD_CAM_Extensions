@@ -109,8 +109,12 @@ class SplitProfilePanel:
             if not job:
                 raise Exception("Could not find parent Job for Profile operation")
             
-            # Get the original operation's position in the Job's Group
-            original_index = job.Group.index(self.operation)
+            # Get the original operation's position in the Job's Operations Group
+            operations_group = job.Operations.Group
+            if self.operation not in operations_group:
+                raise Exception(f"Operation '{self.operation.Label}' is not in Job's Operations group")
+            
+            original_index = operations_group.index(self.operation)
             
             # Create separate Profile operations
             new_operations = []
@@ -138,22 +142,32 @@ class SplitProfilePanel:
                 new_operations.append(new_op)
                 FreeCAD.Console.PrintMessage(f"  Created: {new_op.Label} for {base_item[0].Label}-{base_item[1]}\n")
             
-            # Check if operations were auto-added to the job (they should be)
-            # If not in Job, we'll manually add them at the correct position
-            job_group = list(job.Group)
+            # Manage the operations in the Job's Operations group
+            # Note: Create() should auto-add operations to job.Operations.Group
+            operations_group = list(job.Operations.Group)
             
-            # Remove the original if requested
-            if self.delete_original_checkbox.isChecked() and self.operation in job_group:
-                job_group.remove(self.operation)
-                original_index = original_index  # Position stays the same after removal
+            # If the original should be deleted, remove it from the group
+            if self.delete_original_checkbox.isChecked():
+                if self.operation in operations_group:
+                    operations_group.remove(self.operation)
+                    # Update the index since we removed the original
+                    # (operations are already created and may be auto-added after the original)
             
-            # Check which operations need to be added
+            # Ensure all new operations are in the correct position
+            # They should have been auto-added by Create(), but let's verify and reorder if needed
             for i, new_op in enumerate(new_operations):
-                if new_op not in job_group:
-                    # Insert at the appropriate position
-                    job_group.insert(original_index + i, new_op)
+                if new_op in operations_group:
+                    # Remove it so we can insert at the correct position
+                    operations_group.remove(new_op)
+                # Insert at the appropriate position
+                insert_pos = original_index + i
+                if insert_pos > len(operations_group):
+                    operations_group.append(new_op)
+                else:
+                    operations_group.insert(insert_pos, new_op)
             
-            job.Group = job_group
+            # Update the Job's Operations group
+            job.Operations.Group = operations_group
             
             # Delete the original operation from the document if requested
             if self.delete_original_checkbox.isChecked():
