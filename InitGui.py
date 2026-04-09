@@ -15,10 +15,19 @@ import FreeCADGui
 # Import and register commands immediately (available in all workbenches)
 import CAMExtensions_Commands
 
+# Import and apply patches
+import ArcFeedRatePatch
+
 # Note: ProfileOrderPatch is experimental and not currently used
 # import ProfileOrderPatch
 
 FreeCAD.Console.PrintMessage("CAM Extensions loaded - commands registered\n")
+
+# Apply arc feed rate patch to add property to Profile operations
+if ArcFeedRatePatch.apply_arc_feed_rate_patch():
+    FreeCAD.Console.PrintMessage("CAM Extensions: Arc feed rate patch applied successfully\n")
+else:
+    FreeCAD.Console.PrintWarning("CAM Extensions: Arc feed rate patch failed to apply\n")
 
 # Note: Profile order patch is disabled in favor of the Split Profile tool
 # if ProfileOrderPatch.apply_profile_order_patch():

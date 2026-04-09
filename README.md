@@ -30,7 +30,23 @@ Enhanced features for FreeCAD's CAM (Path) workbench.
 - **Like Fusion 360's workflow** - Similar to creating individual contour operations
 - **Most reliable solution** - When you need exact control over cutting sequence
 
-### 4. Advanced Toolpath Linking Controls (Planned)
+### 4. Arc Feed Rate Control
+- **Independent arc speed control** - Set different feed rates for arc moves (G2/G3) vs linear moves (G1)
+- **ArcFeedRatePercent property** - Added to all Profile operations automatically
+- **Per-operation control** - Each Profile can have its own arc feed rate percentage
+- **Default: 100%** - No change to feed rate unless you modify it
+- **Better finish on curves** - Slow down on tight radius cuts for improved quality
+- **Material-specific** - Foam, wood, plastics may benefit from slower arc speeds
+- **Works with Split Profile** - Each split operation can have different arc speeds
+- **Visible in G-code** - Feed rates are explicitly output for verification
+
+**How it works:**
+- Set ArcFeedRatePercent to 60 for 60% speed on arcs
+- Linear moves (G1) run at normal feed rate
+- Arc moves (G2/G3) run at reduced feed rate
+- Combines with Mach4 CV mode for smooth cornering
+
+### 5. Advanced Toolpath Linking Controls (Planned)
 - Enhanced control over toolpath linking behavior
 - Coming soon
 
@@ -90,6 +106,31 @@ Enhanced features for FreeCAD's CAM (Path) workbench.
 **Why use split?** Each operation runs independently in order with NO automatic reordering or optimization. You get complete control, just like creating individual contour operations in Fusion 360.
 
 **Pro tip:** The operations are inserted in the Job at the same position as the original Profile, maintaining your workflow order.
+
+### Arc Feed Rate Control
+1. Create or select a Profile operation
+2. Look in the **Data** tab in the **Property Editor**
+3. Find the **ArcFeedRatePercent** property (under "Path" section)
+4. Set the percentage (default is 100%):
+   - **100%** - Arcs run at same speed as linear moves (normal behavior)
+   - **60%** - Arcs run at 60% of the Profile's feed rate (good for tight curves)
+   - **40%** - Arcs run at 40% of the Profile's feed rate (delicate materials)
+   - **25%** - Arcs run at 25% of the Profile's feed rate (very tight radius or fragile material)
+5. Generate toolpath and post-process
+6. Check the G-code - you'll see different F values on G2/G3 commands vs G1 commands
+
+**When to use:**
+- Tight radius features that need better finish quality
+- Foam cutting where arc speed needs to be slower
+- Materials that tend to burn or melt on curves
+- Any time you want independent control of arc vs linear speeds
+
+**Example:**
+- Profile set to 500 in/min horizontal feed rate
+- ArcFeedRatePercent set to 60%
+- Result: G1 moves at 500 in/min, G2/G3 moves at 300 in/min
+
+**Works with Split Profile:** When you split a Profile, each new operation gets its own ArcFeedRatePercent property, so different parts of your cut can have different arc speeds!
 
 ## Requirements
 

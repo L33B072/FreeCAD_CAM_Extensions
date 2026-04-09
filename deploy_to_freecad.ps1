@@ -19,20 +19,20 @@ if (!(Test-Path $dest)) {
 $pythonFiles = Get-ChildItem -Path $source -Filter "*.py" -File
 foreach ($file in $pythonFiles) {
     Copy-Item -Path $file.FullName -Destination $dest -Force
-    Write-Host "✓ Copied: $($file.Name)" -ForegroundColor Green
+    Write-Host "Copied: $($file.Name)" -ForegroundColor Green
 }
 
 # Copy other important files (MD and XML)
 $mdFiles = Get-ChildItem -Path $source -Filter "*.md" -File
 foreach ($file in $mdFiles) {
     Copy-Item -Path $file.FullName -Destination $dest -Force
-    Write-Host "✓ Copied: $($file.Name)" -ForegroundColor Green
+    Write-Host "Copied: $($file.Name)" -ForegroundColor Green
 }
 
 $xmlFiles = Get-ChildItem -Path $source -Filter "*.xml" -File
 foreach ($file in $xmlFiles) {
     Copy-Item -Path $file.FullName -Destination $dest -Force
-    Write-Host "✓ Copied: $($file.Name)" -ForegroundColor Green
+    Write-Host "Copied: $($file.Name)" -ForegroundColor Green
 }
 
 Write-Host ""
