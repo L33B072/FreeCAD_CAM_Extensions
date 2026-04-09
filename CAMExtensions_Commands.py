@@ -203,7 +203,28 @@ class SplitProfileCommand:
                     return
         
         # Check if operation has multiple base geometries
-        if not hasattr(operation, 'Base') or len(operation.Base) < 2:
+        if not hasattr(operation, 'Base'):
+            FreeCAD.Console.PrintWarning(f"Profile {operation.Label} has no Base property\n")
+            return
+        
+        # Debug output
+        FreeCAD.Console.PrintMessage(f"\n=== Split Profile Debug ===\n")
+        FreeCAD.Console.PrintMessage(f"Operation: {operation.Label}\n")
+        FreeCAD.Console.PrintMessage(f"Base items count: {len(operation.Base)}\n")
+        
+        # Count total features across all base items
+        total_features = 0
+        for i, base_item in enumerate(operation.Base):
+            obj = base_item[0]
+            features = base_item[1]
+            FreeCAD.Console.PrintMessage(f"  Base item {i}: Object={obj.Label}, Features={features} (count={len(features)})\n")
+            total_features += len(features)
+        
+        FreeCAD.Console.PrintMessage(f"Total features to split: {total_features}\n")
+        FreeCAD.Console.PrintMessage(f"===========================\n\n")
+        
+        # Check if we have something to split - either multiple base items OR one base item with multiple features
+        if len(operation.Base) < 2 and (len(operation.Base) == 0 or len(operation.Base[0][1]) < 2):
             FreeCAD.Console.PrintWarning(f"Profile {operation.Label} has less than 2 base geometries\n")
             QtGui.QMessageBox.warning(
                 None,

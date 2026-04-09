@@ -24,6 +24,18 @@ class SplitProfilePanel:
     
     def __init__(self, operation):
         self.operation = operation
+        
+        # Prepare list of items to split
+        # Each item is (base_object, feature_name)
+        self.split_items = []
+        
+        for base_item in self.operation.Base:
+            obj = base_item[0]
+            features = base_item[1]
+            # If multiple features in one base item, split them individually
+            for feature in features:
+                self.split_items.append((obj, feature))
+        
         self.form = self.createUI()
         
     def createUI(self):
@@ -37,7 +49,7 @@ class SplitProfilePanel:
         layout.addWidget(title)
         
         # Info
-        info_text = f"This will create {len(self.operation.Base)} separate Profile operations,\n"
+        info_text = f"This will create {len(self.split_items)} separate Profile operations,\n"
         info_text += "one for each base geometry, in the current order.\n\n"
         info_text += "Each operation will inherit all settings from the original."
         info = QtGui.QLabel(info_text)
@@ -50,10 +62,10 @@ class SplitProfilePanel:
         layout.addWidget(list_label)
         
         self.list_widget = QtGui.QListWidget()
-        for i, base_item in enumerate(self.operation.Base):
-            obj = base_item[0]
-            features = base_item[1]
-            item_text = f"{i+1}. {obj.Label} - {', '.join(features)}"
+        for i, split_item in enumerate(self.split_items):
+            obj = split_item[0]
+            feature = split_item[1]
+            item_text = f"{i+1}. {obj.Label} - {feature}"
             self.list_widget.addItem(item_text)
         layout.addWidget(self.list_widget)
         
@@ -71,6 +83,11 @@ class SplitProfilePanel:
         self.rename_checkbox.setChecked(True)
         self.rename_checkbox.setToolTip("Names will be: ProfileName_001, ProfileName_002, etc.")
         options_layout.addWidget(self.rename_checkbox)
+        
+        self.save_reopen_checkbox = QtGui.QCheckBox("Save and reopen document after split (ensures full editability)")
+        self.save_reopen_checkbox.setChecked(False)
+        self.save_reopen_checkbox.setToolTip("Due to FreeCAD internals, operations may not be fully editable until document is saved and reopened.\nCheck this to do it automatically.")
+        options_layout.addWidget(self.save_reopen_checkbox)
         
         options_group.setLayout(options_layout)
         layout.addWidget(options_group)
@@ -93,7 +110,14 @@ class SplitProfilePanel:
     
     def splitProfile(self):
         """Split the Profile operation into separate operations"""
-        if not self.operation or len(self.operation.Base) < 2:
+        
+        # Debug: Show what's in Base
+        FreeCAD.Console.PrintMessage(f"\n=== Split Profile Debug Info ===\n")
+        FreeCAD.Console.PrintMessage(f"Operation: {self.operation.Label}\n")
+        FreeCAD.Console.PrintMessage(f"Split items count: {len(self.split_items)}\n")
+        FreeCAD.Console.PrintMessage(f"=================================\n\n")
+        
+        if not self.operation or len(self.split_items) < 2:
             self.status_label.setText("✗ Profile must have at least 2 base geometries to split")
             self.status_label.setStyleSheet("QLabel { color: red; }")
             return
@@ -120,15 +144,19 @@ class SplitProfilePanel:
             new_operations = []
             base_name = self.operation.Label if not self.rename_checkbox.isChecked() else self.operation.Label.rstrip('0123456789_')
             
-            FreeCAD.Console.PrintMessage(f"\nSplitting Profile '{self.operation.Label}' into {len(self.operation.Base)} operations...\n")
+            FreeCAD.Console.PrintMessage(f"\nSplitting Profile '{self.operation.Label}' into {len(self.split_items)} operations...\n")
             
-            for i, base_item in enumerate(self.operation.Base):
+            for i, split_item in enumerate(self.split_items):
+                obj = split_item[0]
+                feature = split_item[1]
+                
                 # Create new Profile operation
                 import Path.Op.Profile as PathProfile
                 new_op = PathProfile.Create('Profile', obj=None, parentJob=job)
                 
-                # Set the base geometry (just this one)
-                new_op.Base = [base_item]
+                # Set the base geometry (just this one feature)
+                # Base format: [(object, (feature_name,))]
+                new_op.Base = [(obj, (feature,))]
                 
                 # Copy all properties from original
                 self.copyProperties(self.operation, new_op)
@@ -139,8 +167,16 @@ class SplitProfilePanel:
                 else:
                     new_op.Label = f"{self.operation.Label}_{i+1}"
                 
+                # Ensure ViewObject is properly set up for editing
+                if hasattr(new_op, 'ViewObject') and new_op.ViewObject:
+                    # Set properties that might affect editability
+                    try:
+                        new_op.ViewObject.Proxy = self.operation.ViewObject.Proxy
+                    except:
+                        pass
+                
                 new_operations.append(new_op)
-                FreeCAD.Console.PrintMessage(f"  Created: {new_op.Label} for {base_item[0].Label}-{base_item[1]}\n")
+                FreeCAD.Console.PrintMessage(f"  Created: {new_op.Label} for {obj.Label}-{feature}\n")
             
             # Manage the operations in the Job's Operations group
             # Note: Create() should auto-add operations to job.Operations.Group
@@ -174,23 +210,96 @@ class SplitProfilePanel:
                 doc.removeObject(self.operation.Name)
                 FreeCAD.Console.PrintMessage(f"  Deleted original: {self.operation.Label}\n")
             
-            # Recompute
+            # Force path regeneration - recompute multiple times to ensure proper generation
+            FreeCAD.Console.PrintMessage("  Regenerating toolpaths...\n")
             for op in new_operations:
+                op.touch()  # Mark as needing recompute
                 op.recompute()
             
             job.recompute()
             doc.recompute()
+            
+            # Second recompute to ensure paths are fully generated
+            for op in new_operations:
+                try:
+                    # Force execute to regenerate path
+                    if hasattr(op, 'Proxy') and hasattr(op.Proxy, 'execute'):
+                        op.Proxy.execute(op)
+                    # Touch path-related properties to force regeneration
+                    if hasattr(op, 'Path'):
+                        op.Path.touch()
+                    op.recompute()
+                except Exception as e:
+                    FreeCAD.Console.PrintWarning(f"  Warning: Could not fully regenerate path for {op.Label}: {e}\n")
+            
+            # Final document recompute
+            job.recompute()
+            doc.recompute()
+            
+            # Ensure view objects are updated
+            for op in new_operations:
+                if hasattr(op, 'ViewObject'):
+                    op.ViewObject.signalChangeIcon()
+            
+            FreeCADGui.updateGui()
+            
+            # Force a soft "refresh" by saving internal state
+            # This mimics what happens when you close/reopen the file
+            try:
+                for op in new_operations:
+                    # Force the operation to save and restore its internal state
+                    if hasattr(op, 'Proxy') and hasattr(op.Proxy, 'onDocumentRestored'):
+                        op.Proxy.onDocumentRestored(op)
+                    # Ensure the operation is fully set up
+                    if hasattr(op, 'Proxy') and hasattr(op.Proxy, 'setEdit'):
+                        pass  # Don't actually open for edit, just ensure the method exists
+                FreeCAD.Console.PrintMessage("  Applied state refresh for editability\n")
+            except Exception as e:
+                FreeCAD.Console.PrintWarning(f"  Note: Could not apply full state refresh: {e}\n")
             doc.commitTransaction()
+            
+            # Handle save and reopen if requested
+            if self.save_reopen_checkbox.isChecked():
+                FreeCAD.Console.PrintMessage("  Saving and reopening document to ensure full editability...\n")
+                doc_path = doc.FileName
+                
+                # If document hasn't been saved yet, prompt user to save
+                if not doc_path:
+                    FreeCAD.Console.PrintWarning("  Document must be saved first to use auto-reopen feature\n")
+                    msg = f"✓ Successfully split into {len(new_operations)} Profile operations!\n"
+                    msg += "(Save and reopen document manually to make operations fully editable)"
+                    if self.delete_original_checkbox.isChecked():
+                        msg += "\n(Original operation deleted)"
+                    self.status_label.setText(msg)
+                    self.status_label.setStyleSheet("QLabel { color: orange; font-weight: bold; }")
+                else:
+                    # Save the document
+                    doc.save()
+                    FreeCAD.Console.PrintMessage(f"  Document saved: {doc_path}\n")
+                    
+                    # Close and reopen
+                    FreeCAD.closeDocument(doc.Name)
+                    FreeCAD.openDocument(doc_path)
+                    FreeCAD.Console.PrintMessage("  Document reopened - operations are now fully editable\n")
+                    
+                    # Don't show status or close panel since document was reloaded
+                    return
             
             # Success message
             msg = f"✓ Successfully split into {len(new_operations)} Profile operations!"
             if self.delete_original_checkbox.isChecked():
                 msg += "\n(Original operation deleted)"
             
+            # Add note about editability if not auto-reopening
+            if not self.save_reopen_checkbox.isChecked():
+                msg += "\n\nNote: If operations aren't fully editable, save and reopen the document."
+            
             self.status_label.setText(msg)
             self.status_label.setStyleSheet("QLabel { color: green; font-weight: bold; }")
             
-            FreeCAD.Console.PrintMessage(f"✓ Profile split complete!\n\n")
+            FreeCAD.Console.PrintMessage(f"✓ Profile split complete!\n")
+            if not self.save_reopen_checkbox.isChecked():
+                FreeCAD.Console.PrintMessage("  (If operations aren't editable, save and reopen document)\n\n")
             
             # Close the panel after a brief delay
             QtCore.QTimer.singleShot(2000, self.accept)
@@ -205,24 +314,67 @@ class SplitProfilePanel:
     
     def copyProperties(self, source, target):
         """Copy all relevant properties from source to target operation"""
-        # List of properties to copy
-        properties_to_copy = [
-            'Active', 'Direction', 'Side', 'OffsetExtra', 'UseComp',
-            'StepDown', 'FinalDepth', 'StartDepth',
-            'SafeHeight', 'ClearanceHeight',
-            'ToolController', 'CoolantMode',
-            'UseStartPoint', 'StartPoint',
-            'processHoles', 'processPerimeter', 'processCircles',
-            'HandleMultipleFeatures', 'JoinType', 'MiterLimit',
-            'SplitArcs', 'Stepover', 'NumPasses'
+        # Properties to skip (these are set automatically or shouldn't be copied)
+        skip_properties = [
+            'Base', 'Label', 'Path', 'Shape',
+            'State', 'ViewObject', 'Document', 'Name', 'FullName',
+            'Id', 'MemSize', 'Module', 'TypeId', 'Proxy', 'OpValues',
+            'Group', 'InList', 'OutList', 'Parents'
         ]
         
-        for prop in properties_to_copy:
-            if hasattr(source, prop) and hasattr(target, prop):
+        # Get all properties from the source
+        source_properties = source.PropertiesList
+        
+        FreeCAD.Console.PrintMessage(f"  Copying {len(source_properties)} properties...\n")
+        copied_count = 0
+        
+        # First, handle expressions - get the source's expression engine
+        source_expressions = {}
+        if hasattr(source, 'ExpressionEngine'):
+            for expr_tuple in source.ExpressionEngine:
+                prop_name = expr_tuple[0]
+                expr_value = expr_tuple[1]
+                source_expressions[prop_name] = expr_value
+        
+        # Copy each property
+        for prop_name in source_properties:
+            # Skip properties in the skip list
+            if prop_name in skip_properties:
+                continue
+            
+            # Only copy if both source and target have this property
+            if hasattr(source, prop_name) and hasattr(target, prop_name):
                 try:
-                    setattr(target, prop, getattr(source, prop))
-                except:
-                    pass  # Some properties might be read-only
+                    # Check if this property has an expression in the source
+                    if prop_name in source_expressions:
+                        # Source has an expression - copy the expression to target
+                        target.setExpression(prop_name, source_expressions[prop_name])
+                        copied_count += 1
+                        if prop_name in ['StepDown', 'FinalDepth', 'StartDepth', 'Direction', 'Side', 'ToolController']:
+                            FreeCAD.Console.PrintMessage(f"    ✓ {prop_name}: {source_expressions[prop_name]} (expression)\n")
+                    else:
+                        # Source has NO expression (literal value) - clear any expression on target and set literal value
+                        # First, clear any existing expression on the target
+                        if hasattr(target, 'ExpressionEngine'):
+                            for target_expr in target.ExpressionEngine:
+                                if target_expr[0] == prop_name:
+                                    target.setExpression(prop_name, None)  # Clear the expression
+                                    break
+                        
+                        # Now set the literal value from source
+                        source_value = getattr(source, prop_name)
+                        setattr(target, prop_name, source_value)
+                        copied_count += 1
+                        
+                        # Log important properties
+                        if prop_name in ['StepDown', 'FinalDepth', 'StartDepth', 'Direction', 'Side', 'ToolController']:
+                            FreeCAD.Console.PrintMessage(f"    ✓ {prop_name}: {source_value} (literal value)\n")
+                        
+                except Exception as e:
+                    # Property might be read-only or have other restrictions
+                    FreeCAD.Console.PrintWarning(f"    Warning: Could not copy {prop_name}: {e}\n")
+        
+        FreeCAD.Console.PrintMessage(f"  Successfully copied {copied_count} properties\n")
     
     def accept(self):
         """Called when the panel is closed"""

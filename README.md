@@ -81,8 +81,11 @@ Enhanced features for FreeCAD's CAM (Path) workbench.
 6. Choose options:
    - **Delete original Profile** (recommended - checked by default)
    - **Auto-rename operations** (creates Profile_001, Profile_002, etc.)
+   - **Save and reopen document** (optional - ensures operations are immediately editable)
 7. Click **Split Profile**
 8. Done! Each base geometry is now a separate Profile operation in sequence
+
+**Note:** Due to FreeCAD's internal operation initialization, newly split operations may not be fully editable (can't open task panel) until the document is saved and reopened. Check the "Save and reopen document" option to do this automatically, or manually save and reopen after splitting.
 
 **Why use split?** Each operation runs independently in order with NO automatic reordering or optimization. You get complete control, just like creating individual contour operations in Fusion 360.
 
