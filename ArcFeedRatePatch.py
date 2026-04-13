@@ -139,13 +139,9 @@ class ArcFeedRatePatch:
                         # Add Arc Feed Rate field to the form
                         layout = form.layout()
                         if layout:
-                            # Create horizontal layout for our field
-                            arcLayout = QtGui.QHBoxLayout()
-                            
                             # Label
                             arcLabel = QtGui.QLabel("Arc Feed Rate:")
                             arcLabel.setToolTip("Feed rate percentage for arc moves (G2/G3).\nSet below 100% to slow down arcs for better finish.")
-                            arcLayout.addWidget(arcLabel)
                             
                             # Spinbox
                             arcSpinbox = QtGui.QSpinBox()
@@ -154,13 +150,21 @@ class ArcFeedRatePatch:
                             arcSpinbox.setValue(100)
                             arcSpinbox.setSuffix(" %")
                             arcSpinbox.setObjectName("arcFeedRateSpinBox")
-                            arcLayout.addWidget(arcSpinbox)
-                            arcLayout.addStretch()
                             
-                            # Add to form layout
-                            layout.addLayout(arcLayout)
-                            
-                            FreeCAD.Console.PrintMessage("ArcFeedRatePatch: Added Arc Feed Rate field to form\n")
+                            # Add to grid layout (need to find the next row)
+                            if isinstance(layout, QtGui.QGridLayout):
+                                row = layout.rowCount()
+                                layout.addWidget(arcLabel, row, 0)
+                                layout.addWidget(arcSpinbox, row, 1)
+                                FreeCAD.Console.PrintMessage(f"ArcFeedRatePatch: Added Arc Feed Rate field to grid layout at row {row}\n")
+                            else:
+                                # Fallback for other layout types
+                                arcLayout = QtGui.QHBoxLayout()
+                                arcLayout.addWidget(arcLabel)
+                                arcLayout.addWidget(arcSpinbox)
+                                arcLayout.addStretch()
+                                layout.addLayout(arcLayout)
+                                FreeCAD.Console.PrintMessage("ArcFeedRatePatch: Added Arc Feed Rate field to form\n")
                     except Exception as e:
                         FreeCAD.Console.PrintWarning(f"ArcFeedRatePatch: Could not add field to form: {e}\n")
                         import traceback
