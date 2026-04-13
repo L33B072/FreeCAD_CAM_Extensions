@@ -161,6 +161,27 @@ class SplitProfilePanel:
                 # Copy all properties from original
                 self.copyProperties(self.operation, new_op)
                 
+                # Explicitly ensure ArcFeedRatePercent is copied (if it exists)
+                # This handles cases where the property might not exist on new_op yet
+                if hasattr(self.operation, 'ArcFeedRatePercent'):
+                    if not hasattr(new_op, 'ArcFeedRatePercent'):
+                        # Add the property if it doesn't exist
+                        try:
+                            new_op.addProperty(
+                                "App::PropertyPercent",
+                                "ArcFeedRatePercent",
+                                "Path",
+                                "Feed rate percentage for arc moves (G2/G3). Set to 100% for normal speed, lower values slow down arcs."
+                            )
+                        except:
+                            pass  # Property might already exist
+                    # Copy the value
+                    try:
+                        new_op.ArcFeedRatePercent = self.operation.ArcFeedRatePercent
+                        FreeCAD.Console.PrintMessage(f"    ✓ ArcFeedRatePercent: {self.operation.ArcFeedRatePercent}%\n")
+                    except Exception as e:
+                        FreeCAD.Console.PrintWarning(f"    Warning: Could not copy ArcFeedRatePercent: {e}\n")
+                
                 # Set the name
                 if self.rename_checkbox.isChecked():
                     new_op.Label = f"{base_name}_{i+1:03d}"
