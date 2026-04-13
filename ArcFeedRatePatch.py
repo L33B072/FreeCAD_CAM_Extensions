@@ -114,14 +114,42 @@ class ArcFeedRatePatch:
     def patch_profile_task_panel(self):
         """Patch Profile task panel to add Arc Feed Rate input field"""
         try:
-            from PathScripts import PathProfileGui
+            FreeCAD.Console.PrintMessage("ArcFeedRatePatch: Attempting to patch Profile task panel...\n")
+            
+            # Try to import the Profile GUI module
+            try:
+                from PathScripts import PathProfileGui
+                FreeCAD.Console.PrintMessage("ArcFeedRatePatch: Successfully imported PathProfileGui\n")
+            except ImportError as e:
+                FreeCAD.Console.PrintWarning(f"ArcFeedRatePatch: Could not import PathProfileGui: {e}\n")
+                # Try alternative import paths
+                try:
+                    import PathScripts.PathProfileGui as PathProfileGui
+                    FreeCAD.Console.PrintMessage("ArcFeedRatePatch: Successfully imported via alternative path\n")
+                except ImportError as e2:
+                    FreeCAD.Console.PrintWarning(f"ArcFeedRatePatch: Alternative import also failed: {e2}\n")
+                    return
+            
+            # Check what's in the module
+            FreeCAD.Console.PrintMessage(f"ArcFeedRatePatch: PathProfileGui attributes: {dir(PathProfileGui)}\n")
+            
+            # Check if TaskPanel exists
+            if not hasattr(PathProfileGui, 'TaskPanel'):
+                FreeCAD.Console.PrintWarning("ArcFeedRatePatch: PathProfileGui has no TaskPanel class\n")
+                FreeCAD.Console.PrintMessage(f"ArcFeedRatePatch: Available classes: {[x for x in dir(PathProfileGui) if not x.startswith('_')]}\n")
+                return
+            
+            FreeCAD.Console.PrintMessage(f"ArcFeedRatePatch: TaskPanel methods: {[x for x in dir(PathProfileGui.TaskPanel) if not x.startswith('_')]}\n")
+            
             from PySide import QtGui
             
             # Store original setupUi if it exists
             if hasattr(PathProfileGui.TaskPanel, 'setupUi'):
                 original_setupUi = PathProfileGui.TaskPanel.setupUi
+                FreeCAD.Console.PrintMessage("ArcFeedRatePatch: Found setupUi method, patching...\n")
                 
                 def patched_setupUi(panel_self):
+                    FreeCAD.Console.PrintMessage("ArcFeedRatePatch: patched_setupUi called\n")
                     # Call original setupUi
                     result = original_setupUi(panel_self)
                     
@@ -152,32 +180,42 @@ class ArcFeedRatePatch:
                                 # Add stretch to push controls to the left
                                 arc_layout.addStretch()
                                 
-                                # Add to form layout (try to insert near the top after basic fields)
-                                # We'll add it as a new row
+                                # Add to form layout
                                 form_layout.addLayout(arc_layout)
                                 
-                                # Store reference to spinbox so we can read it later
+                                # Store reference to spinbox
                                 panel_self.arcFeedRateSpinBox = arc_spinbox
                                 
-                                # If operation already has ArcFeedRatePercent, load it
+                                # Load existing value if available
                                 if hasattr(panel_self, 'obj') and panel_self.obj:
                                     if hasattr(panel_self.obj, 'ArcFeedRatePercent'):
                                         arc_spinbox.setValue(int(panel_self.obj.ArcFeedRatePercent))
                                 
-                                FreeCAD.Console.PrintMessage("ArcFeedRatePatch: Added Arc Feed Rate field to Profile task panel\n")
+                                FreeCAD.Console.PrintMessage("ArcFeedRatePatch: Successfully added Arc Feed Rate field to UI\n")
+                            else:
+                                FreeCAD.Console.PrintWarning("ArcFeedRatePatch: Could not find form layout\n")
+                        else:
+                            FreeCAD.Console.PrintWarning("ArcFeedRatePatch: panel_self has no form attribute\n")
                     except Exception as e:
-                        FreeCAD.Console.PrintWarning(f"ArcFeedRatePatch: Could not add UI field: {e}\n")
+                        FreeCAD.Console.PrintWarning(f"ArcFeedRatePatch: Error adding UI field: {e}\n")
+                        import traceback
+                        traceback.print_exc()
                     
                     return result
                 
                 # Replace setupUi
                 PathProfileGui.TaskPanel.setupUi = patched_setupUi
+                FreeCAD.Console.PrintMessage("ArcFeedRatePatch: setupUi patched successfully\n")
+            else:
+                FreeCAD.Console.PrintWarning("ArcFeedRatePatch: TaskPanel has no setupUi method\n")
             
             # Also patch accept() to save the value
             if hasattr(PathProfileGui.TaskPanel, 'accept'):
                 original_accept = PathProfileGui.TaskPanel.accept
+                FreeCAD.Console.PrintMessage("ArcFeedRatePatch: Found accept method, patching...\n")
                 
                 def patched_accept(panel_self):
+                    FreeCAD.Console.PrintMessage("ArcFeedRatePatch: patched_accept called\n")
                     # Save Arc Feed Rate value if spinbox exists
                     if hasattr(panel_self, 'arcFeedRateSpinBox') and hasattr(panel_self, 'obj'):
                         if panel_self.obj:
@@ -193,13 +231,14 @@ class ArcFeedRatePatch:
                 
                 # Replace accept
                 PathProfileGui.TaskPanel.accept = patched_accept
+                FreeCAD.Console.PrintMessage("ArcFeedRatePatch: accept patched successfully\n")
+            else:
+                FreeCAD.Console.PrintWarning("ArcFeedRatePatch: TaskPanel has no accept method\n")
             
-            FreeCAD.Console.PrintMessage("ArcFeedRatePatch: Patched Profile task panel GUI\n")
+            FreeCAD.Console.PrintMessage("ArcFeedRatePatch: Profile task panel GUI patching complete\n")
             
-        except ImportError:
-            FreeCAD.Console.PrintWarning("ArcFeedRatePatch: Could not import PathProfileGui - task panel patch skipped\n")
         except Exception as e:
-            FreeCAD.Console.PrintWarning(f"ArcFeedRatePatch: Could not patch task panel: {e}\n")
+            FreeCAD.Console.PrintError(f"ArcFeedRatePatch: Failed to patch task panel: {e}\n")
             import traceback
             traceback.print_exc()
     
