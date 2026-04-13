@@ -222,6 +222,29 @@ class ArcFeedRatePatch:
                 ProfileGui.TaskPanelOpPage.getFields = patched_getFields
                 FreeCAD.Console.PrintMessage("ArcFeedRatePatch: getFields patched successfully\n")
             
+            # Patch getSignalsForUpdate() to include our spinbox signal
+            if hasattr(ProfileGui.TaskPanelOpPage, 'getSignalsForUpdate'):
+                original_getSignalsForUpdate = ProfileGui.TaskPanelOpPage.getSignalsForUpdate
+                FreeCAD.Console.PrintMessage("ArcFeedRatePatch: Found getSignalsForUpdate method, patching...\n")
+                
+                def patched_getSignalsForUpdate(panel_self, obj):
+                    # Get original signals
+                    signals = original_getSignalsForUpdate(panel_self, obj)
+                    
+                    # Add our Arc Feed Rate spinbox signal
+                    try:
+                        spinbox = panel_self.form.findChild(QtGui.QSpinBox, "arcFeedRateSpinBox")
+                        if spinbox:
+                            signals.append(spinbox.valueChanged)
+                            FreeCAD.Console.PrintMessage("ArcFeedRatePatch: Added arcFeedRateSpinBox.valueChanged to update signals\n")
+                    except Exception as e:
+                        FreeCAD.Console.PrintWarning(f"ArcFeedRatePatch: Could not add signal: {e}\n")
+                    
+                    return signals
+                
+                ProfileGui.TaskPanelOpPage.getSignalsForUpdate = patched_getSignalsForUpdate
+                FreeCAD.Console.PrintMessage("ArcFeedRatePatch: getSignalsForUpdate patched successfully\n")
+            
             FreeCAD.Console.PrintMessage("ArcFeedRatePatch: Profile task panel GUI patching complete\n")
             
         except Exception as e:
