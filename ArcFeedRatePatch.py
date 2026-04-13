@@ -116,124 +116,107 @@ class ArcFeedRatePatch:
         try:
             FreeCAD.Console.PrintMessage("ArcFeedRatePatch: Attempting to patch Profile task panel...\n")
             
-            # Try to import the Profile GUI module
+            # Import the correct Profile GUI module (FreeCAD 1.1+)
             try:
-                from PathScripts import PathProfileGui
-                FreeCAD.Console.PrintMessage("ArcFeedRatePatch: Successfully imported PathProfileGui\n")
+                from Path.Op.Gui import Profile as ProfileGui
+                FreeCAD.Console.PrintMessage("ArcFeedRatePatch: Successfully imported Path.Op.Gui.Profile\n")
             except ImportError as e:
-                FreeCAD.Console.PrintWarning(f"ArcFeedRatePatch: Could not import PathProfileGui: {e}\n")
-                # Try alternative import paths
-                try:
-                    import PathScripts.PathProfileGui as PathProfileGui
-                    FreeCAD.Console.PrintMessage("ArcFeedRatePatch: Successfully imported via alternative path\n")
-                except ImportError as e2:
-                    FreeCAD.Console.PrintWarning(f"ArcFeedRatePatch: Alternative import also failed: {e2}\n")
-                    return
-            
-            # Check what's in the module
-            FreeCAD.Console.PrintMessage(f"ArcFeedRatePatch: PathProfileGui attributes: {dir(PathProfileGui)}\n")
-            
-            # Check if TaskPanel exists
-            if not hasattr(PathProfileGui, 'TaskPanel'):
-                FreeCAD.Console.PrintWarning("ArcFeedRatePatch: PathProfileGui has no TaskPanel class\n")
-                FreeCAD.Console.PrintMessage(f"ArcFeedRatePatch: Available classes: {[x for x in dir(PathProfileGui) if not x.startswith('_')]}\n")
+                FreeCAD.Console.PrintWarning(f"ArcFeedRatePatch: Could not import Profile GUI: {e}\n")
                 return
-            
-            FreeCAD.Console.PrintMessage(f"ArcFeedRatePatch: TaskPanel methods: {[x for x in dir(PathProfileGui.TaskPanel) if not x.startswith('_')]}\n")
             
             from PySide import QtGui
             
-            # Store original setupUi if it exists
-            if hasattr(PathProfileGui.TaskPanel, 'setupUi'):
-                original_setupUi = PathProfileGui.TaskPanel.setupUi
-                FreeCAD.Console.PrintMessage("ArcFeedRatePatch: Found setupUi method, patching...\n")
+            # Patch getForm() to add our widget
+            if hasattr(ProfileGui.TaskPanelOpPage, 'getForm'):
+                original_getForm = ProfileGui.TaskPanelOpPage.getForm
+                FreeCAD.Console.PrintMessage("ArcFeedRatePatch: Found getForm method, patching...\n")
                 
-                def patched_setupUi(panel_self):
-                    FreeCAD.Console.PrintMessage("ArcFeedRatePatch: patched_setupUi called\n")
-                    # Call original setupUi
-                    result = original_setupUi(panel_self)
+                def patched_getForm(panel_self):
+                    # Call original getForm to get the form
+                    form = original_getForm(panel_self)
                     
-                    # Add our Arc Feed Rate field
                     try:
-                        # Find the form layout (usually in panel_self.form)
-                        if hasattr(panel_self, 'form') and panel_self.form:
-                            form_layout = panel_self.form.layout()
+                        # Add Arc Feed Rate field to the form
+                        layout = form.layout()
+                        if layout:
+                            # Create horizontal layout for our field
+                            arcLayout = QtGui.QHBoxLayout()
                             
-                            if form_layout:
-                                # Create a horizontal layout for our field
-                                arc_layout = QtGui.QHBoxLayout()
-                                
-                                # Label
-                                arc_label = QtGui.QLabel("Arc Feed Rate:")
-                                arc_label.setToolTip("Feed rate percentage for arc moves (G2/G3).\nSet below 100% to slow down arcs for better finish on curves.\nLinear moves (G1) use normal feed rate.")
-                                arc_layout.addWidget(arc_label)
-                                
-                                # Spinbox
-                                arc_spinbox = QtGui.QSpinBox()
-                                arc_spinbox.setMinimum(1)
-                                arc_spinbox.setMaximum(100)
-                                arc_spinbox.setValue(100)
-                                arc_spinbox.setSuffix(" %")
-                                arc_spinbox.setToolTip("Percentage of normal feed rate for arcs (default: 100%)")
-                                arc_layout.addWidget(arc_spinbox)
-                                
-                                # Add stretch to push controls to the left
-                                arc_layout.addStretch()
-                                
-                                # Add to form layout
-                                form_layout.addLayout(arc_layout)
-                                
-                                # Store reference to spinbox
-                                panel_self.arcFeedRateSpinBox = arc_spinbox
-                                
-                                # Load existing value if available
-                                if hasattr(panel_self, 'obj') and panel_self.obj:
-                                    if hasattr(panel_self.obj, 'ArcFeedRatePercent'):
-                                        arc_spinbox.setValue(int(panel_self.obj.ArcFeedRatePercent))
-                                
-                                FreeCAD.Console.PrintMessage("ArcFeedRatePatch: Successfully added Arc Feed Rate field to UI\n")
-                            else:
-                                FreeCAD.Console.PrintWarning("ArcFeedRatePatch: Could not find form layout\n")
-                        else:
-                            FreeCAD.Console.PrintWarning("ArcFeedRatePatch: panel_self has no form attribute\n")
+                            # Label
+                            arcLabel = QtGui.QLabel("Arc Feed Rate:")
+                            arcLabel.setToolTip("Feed rate percentage for arc moves (G2/G3).\nSet below 100% to slow down arcs for better finish.")
+                            arcLayout.addWidget(arcLabel)
+                            
+                            # Spinbox
+                            arcSpinbox = QtGui.QSpinBox()
+                            arcSpinbox.setMinimum(1)
+                            arcSpinbox.setMaximum(100)
+                            arcSpinbox.setValue(100)
+                            arcSpinbox.setSuffix(" %")
+                            arcSpinbox.setObjectName("arcFeedRateSpinBox")
+                            arcLayout.addWidget(arcSpinbox)
+                            arcLayout.addStretch()
+                            
+                            # Add to form layout
+                            layout.addLayout(arcLayout)
+                            
+                            FreeCAD.Console.PrintMessage("ArcFeedRatePatch: Added Arc Feed Rate field to form\n")
                     except Exception as e:
-                        FreeCAD.Console.PrintWarning(f"ArcFeedRatePatch: Error adding UI field: {e}\n")
+                        FreeCAD.Console.PrintWarning(f"ArcFeedRatePatch: Could not add field to form: {e}\n")
                         import traceback
                         traceback.print_exc()
                     
-                    return result
+                    return form
                 
-                # Replace setupUi
-                PathProfileGui.TaskPanel.setupUi = patched_setupUi
-                FreeCAD.Console.PrintMessage("ArcFeedRatePatch: setupUi patched successfully\n")
-            else:
-                FreeCAD.Console.PrintWarning("ArcFeedRatePatch: TaskPanel has no setupUi method\n")
+                ProfileGui.TaskPanelOpPage.getForm = patched_getForm
+                FreeCAD.Console.PrintMessage("ArcFeedRatePatch: getForm patched successfully\n")
             
-            # Also patch accept() to save the value
-            if hasattr(PathProfileGui.TaskPanel, 'accept'):
-                original_accept = PathProfileGui.TaskPanel.accept
-                FreeCAD.Console.PrintMessage("ArcFeedRatePatch: Found accept method, patching...\n")
+            # Patch setFields() to load the value
+            if hasattr(ProfileGui.TaskPanelOpPage, 'setFields'):
+                original_setFields = ProfileGui.TaskPanelOpPage.setFields
+                FreeCAD.Console.PrintMessage("ArcFeedRatePatch: Found setFields method, patching...\n")
                 
-                def patched_accept(panel_self):
-                    FreeCAD.Console.PrintMessage("ArcFeedRatePatch: patched_accept called\n")
-                    # Save Arc Feed Rate value if spinbox exists
-                    if hasattr(panel_self, 'arcFeedRateSpinBox') and hasattr(panel_self, 'obj'):
-                        if panel_self.obj:
-                            # Ensure property exists
-                            if not hasattr(panel_self.obj, 'ArcFeedRatePercent'):
-                                self.add_property_to_profile(panel_self.obj)
-                            # Set the value from spinbox
-                            panel_self.obj.ArcFeedRatePercent = panel_self.arcFeedRateSpinBox.value()
-                            FreeCAD.Console.PrintMessage(f"ArcFeedRatePatch: Set ArcFeedRatePercent to {panel_self.arcFeedRateSpinBox.value()}%\n")
+                def patched_setFields(panel_self, obj):
+                    # Call original setFields
+                    original_setFields(panel_self, obj)
                     
-                    # Call original accept
-                    return original_accept(panel_self)
+                    # Load Arc Feed Rate value
+                    try:
+                        spinbox = panel_self.form.findChild(QtGui.QSpinBox, "arcFeedRateSpinBox")
+                        if spinbox and hasattr(obj, 'ArcFeedRatePercent'):
+                            spinbox.setValue(int(obj.ArcFeedRatePercent))
+                            FreeCAD.Console.PrintMessage(f"ArcFeedRatePatch: Loaded ArcFeedRatePercent = {obj.ArcFeedRatePercent}%\n")
+                    except Exception as e:
+                        FreeCAD.Console.PrintWarning(f"ArcFeedRatePatch: Could not load Arc Feed Rate: {e}\n")
                 
-                # Replace accept
-                PathProfileGui.TaskPanel.accept = patched_accept
-                FreeCAD.Console.PrintMessage("ArcFeedRatePatch: accept patched successfully\n")
-            else:
-                FreeCAD.Console.PrintWarning("ArcFeedRatePatch: TaskPanel has no accept method\n")
+                ProfileGui.TaskPanelOpPage.setFields = patched_setFields
+                FreeCAD.Console.PrintMessage("ArcFeedRatePatch: setFields patched successfully\n")
+            
+            # Patch getFields() to save the value
+            if hasattr(ProfileGui.TaskPanelOpPage, 'getFields'):
+                original_getFields = ProfileGui.TaskPanelOpPage.getFields
+                patcher_self = self  # Capture self for use in nested function
+                FreeCAD.Console.PrintMessage("ArcFeedRatePatch: Found getFields method, patching...\n")
+                
+                def patched_getFields(panel_self, obj):
+                    # Call original getFields
+                    original_getFields(panel_self, obj)
+                    
+                    # Save Arc Feed Rate value
+                    try:
+                        spinbox = panel_self.form.findChild(QtGui.QSpinBox, "arcFeedRateSpinBox")
+                        if spinbox:
+                            # Ensure property exists
+                            if not hasattr(obj, 'ArcFeedRatePercent'):
+                                patcher_self.add_property_to_profile(obj)
+                            # Set the value
+                            obj.ArcFeedRatePercent = spinbox.value()
+                            FreeCAD.Console.PrintMessage(f"ArcFeedRatePatch: Saved ArcFeedRatePercent = {spinbox.value()}%\n")
+                    except Exception as e:
+                        FreeCAD.Console.PrintWarning(f"ArcFeedRatePatch: Could not save Arc Feed Rate: {e}\n")
+                
+                ProfileGui.TaskPanelOpPage.getFields = patched_getFields
+                FreeCAD.Console.PrintMessage("ArcFeedRatePatch: getFields patched successfully\n")
             
             FreeCAD.Console.PrintMessage("ArcFeedRatePatch: Profile task panel GUI patching complete\n")
             
