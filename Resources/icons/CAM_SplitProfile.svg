@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="64" height="64" version="1.1" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+  <g>
+    <!-- Single shape on left -->
+    <rect x="8" y="24" width="20" height="16" rx="2" fill="#4a90e2" stroke="#2e5c8a" stroke-width="2"/>
+    
+    <!-- Arrow pointing right -->
+    <path d="M30 32 L38 32" stroke="#333333" stroke-width="2" stroke-linecap="round"/>
+    <path d="M35 28 L40 32 L35 36" fill="none" stroke="#333333" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    
+    <!-- Split shapes on right -->
+    <rect x="44" y="12" width="12" height="12" rx="1" fill="#50c878" stroke="#3a9b5c" stroke-width="2"/>
+    <rect x="44" y="26" width="12" height="12" rx="1" fill="#50c878" stroke="#3a9b5c" stroke-width="2"/>
+    <rect x="44" y="40" width="12" height="12" rx="1" fill="#50c878" stroke="#3a9b5c" stroke-width="2"/>
+  </g>
+</svg>

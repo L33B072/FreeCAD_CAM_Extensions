@@ -15,6 +15,25 @@ if (!(Test-Path $dest)) {
     Write-Host "Created destination directory" -ForegroundColor Green
 }
 
+# Copy subdirectories (cam, design, common, Resources)
+$subdirs = @("cam", "design", "common", "Resources")
+foreach ($subdir in $subdirs) {
+    $srcPath = Join-Path $source $subdir
+    $dstPath = Join-Path $dest $subdir
+    
+    if (Test-Path $srcPath) {
+        # Remove old directory if it exists
+        if (Test-Path $dstPath) {
+            Remove-Item -Path $dstPath -Recurse -Force
+        }
+        
+        # Copy entire directory
+        Copy-Item -Path $srcPath -Destination $dstPath -Recurse -Force
+        $fileCount = (Get-ChildItem -Path $srcPath -Recurse -File).Count
+        Write-Host "Copied: $subdir\ ($fileCount files)" -ForegroundColor Green
+    }
+}
+
 # Copy Python files
 $pythonFiles = Get-ChildItem -Path $source -Filter "*.py" -File
 foreach ($file in $pythonFiles) {

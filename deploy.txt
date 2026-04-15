@@ -1,0 +1,8 @@
+cd c:\FreeCAD_CAM_Extensions
+.\deploy_to_freecad.ps1
+
+
+
+git add .
+git commit -m "Description of changes"
+git push

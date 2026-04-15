@@ -8,6 +8,7 @@
 
 """CAM Extensions - Command definitions"""
 
+import os
 import FreeCAD
 import FreeCADGui
 from PySide import QtCore, QtGui
@@ -17,15 +18,16 @@ class ShowOperationVariablesCommand:
     """Command to show the Operation Variables viewer"""
     
     def GetResources(self):
+        icon_path = os.path.join(os.path.dirname(__file__), 'Resources', 'icons', 'CAM_ShowOperationVariables.svg')
         return {
-            'Pixmap': 'Path_Array',  # Using existing icon as placeholder
+            'Pixmap': icon_path,
             'MenuText': QtCore.QT_TRANSLATE_NOOP("CAM_ShowOperationVariables", "Show Operation Variables"),
             'ToolTip': QtCore.QT_TRANSLATE_NOOP("CAM_ShowOperationVariables", "Display CAM operation variables and their values")
         }
     
     def Activated(self):
         """Execute when the command is activated"""
-        import OperationVariablesPanel
+        from cam import OperationVariablesPanel
         
         # Get the active document
         doc = FreeCAD.ActiveDocument
@@ -53,102 +55,105 @@ class ShowOperationVariablesCommand:
         return FreeCAD.ActiveDocument is not None
 
 
-class ReorderBaseGeometryCommand:
-    """Command to reorder base geometries in a CAM operation"""
-    
-    def GetResources(self):
-        return {
-            'Pixmap': 'Path_Array',  # Using existing icon as placeholder
-            'MenuText': QtCore.QT_TRANSLATE_NOOP("CAM_ReorderBaseGeometry", "Reorder Base Geometry"),
-            'ToolTip': QtCore.QT_TRANSLATE_NOOP("CAM_ReorderBaseGeometry", "Reorder the base geometries in a CAM operation to control toolpath sequence")
-        }
-    
-    def Activated(self):
-        """Execute when the command is activated"""
-        import BaseGeometryReorderPanel
-        
-        # Get the active document
-        doc = FreeCAD.ActiveDocument
-        if not doc:
-            FreeCAD.Console.PrintError("No active document\n")
-            return
-        
-        # Try to find a selected CAM operation or get one from the user
-        operation = None
-        selection = FreeCADGui.Selection.getSelection()
-        
-        # Check if a CAM operation is selected
-        for obj in selection:
-            if hasattr(obj, 'Base') and obj.TypeId == 'Path::FeaturePython':
-                operation = obj
-                break
-        
-        # If no operation selected, try to find operations in the document
-        if not operation:
-            operations = []
-            for obj in doc.Objects:
-                if hasattr(obj, 'Base') and obj.TypeId == 'Path::FeaturePython':
-                    operations.append(obj)
-            
-            if len(operations) == 0:
-                FreeCAD.Console.PrintError("No CAM operations with Base geometry found\n")
-                QtGui.QMessageBox.warning(
-                    None,
-                    "No Operation Found",
-                    "Please select a CAM operation (Profile, Pocket, etc.) with base geometry first."
-                )
-                return
-            elif len(operations) == 1:
-                operation = operations[0]
-            else:
-                # Multiple operations - ask user to select one
-                items = [op.Label for op in operations]
-                item, ok = QtGui.QInputDialog.getItem(
-                    None,
-                    "Select Operation",
-                    "Multiple operations found. Select one:",
-                    items,
-                    0,
-                    False
-                )
-                if ok and item:
-                    operation = operations[items.index(item)]
-                else:
-                    return
-        
-        # Check if operation has base geometry
-        if not hasattr(operation, 'Base') or len(operation.Base) == 0:
-            FreeCAD.Console.PrintWarning(f"Operation {operation.Label} has no base geometry\n")
-            QtGui.QMessageBox.warning(
-                None,
-                "No Base Geometry",
-                f"The selected operation '{operation.Label}' has no base geometry to reorder."
-            )
-            return
-        
-        # Show the reorder panel
-        FreeCAD.Console.PrintMessage(f"Opening reorder panel for {operation.Label} ({len(operation.Base)} items)\n")
-        panel = BaseGeometryReorderPanel.BaseGeometryReorderPanel(operation)
-        FreeCADGui.Control.showDialog(panel)
-    
-    def IsActive(self):
-        """Return True if command should be active"""
-        return FreeCAD.ActiveDocument is not None
+# Reorder Base Geometry Command - DEPRECATED
+# Use Split Profile and reorder operations in the tree instead
+# class ReorderBaseGeometryCommand:
+#     """Command to reorder base geometries in a CAM operation"""
+#     
+#     def GetResources(self):
+#         return {
+#             'Pixmap': 'Draft_PathArray',  # Array/path icon suggesting ordering
+#             'MenuText': QtCore.QT_TRANSLATE_NOOP("CAM_ReorderBaseGeometry", "Reorder Base Geometry"),
+#             'ToolTip': QtCore.QT_TRANSLATE_NOOP("CAM_ReorderBaseGeometry", "Reorder the base geometries in a CAM operation to control toolpath sequence")
+#         }
+#     
+#     def Activated(self):
+#         """Execute when the command is activated"""
+#         from cam import BaseGeometryReorderPanel
+#         
+#         # Get the active document
+#         doc = FreeCAD.ActiveDocument
+#         if not doc:
+#             FreeCAD.Console.PrintError("No active document\n")
+#             return
+#         
+#         # Try to find a selected CAM operation or get one from the user
+#         operation = None
+#         selection = FreeCADGui.Selection.getSelection()
+#         
+#         # Check if a CAM operation is selected
+#         for obj in selection:
+#             if hasattr(obj, 'Base') and obj.TypeId == 'Path::FeaturePython':
+#                 operation = obj
+#                 break
+#         
+#         # If no operation selected, try to find operations in the document
+#         if not operation:
+#             operations = []
+#             for obj in doc.Objects:
+#                 if hasattr(obj, 'Base') and obj.TypeId == 'Path::FeaturePython':
+#                     operations.append(obj)
+#             
+#             if len(operations) == 0:
+#                 FreeCAD.Console.PrintError("No CAM operations with Base geometry found\n")
+#                 QtGui.QMessageBox.warning(
+#                     None,
+#                     "No Operation Found",
+#                     "Please select a CAM operation (Profile, Pocket, etc.) with base geometry first."
+#                 )
+#                 return
+#             elif len(operations) == 1:
+#                 operation = operations[0]
+#             else:
+#                 # Multiple operations - ask user to select one
+#                 items = [op.Label for op in operations]
+#                 item, ok = QtGui.QInputDialog.getItem(
+#                     None,
+#                     "Select Operation",
+#                     "Multiple operations found. Select one:",
+#                     items,
+#                     0,
+#                     False
+#                 )
+#                 if ok and item:
+#                     operation = operations[items.index(item)]
+#                 else:
+#                     return
+#         
+#         # Check if operation has base geometry
+#         if not hasattr(operation, 'Base') or len(operation.Base) == 0:
+#             FreeCAD.Console.PrintWarning(f"Operation {operation.Label} has no base geometry\n")
+#             QtGui.QMessageBox.warning(
+#                 None,
+#                 "No Base Geometry",
+#                 f"The selected operation '{operation.Label}' has no base geometry to reorder."
+#             )
+#             return
+#         
+#         # Show the reorder panel
+#         FreeCAD.Console.PrintMessage(f"Opening reorder panel for {operation.Label} ({len(operation.Base)} items)\n")
+#         panel = BaseGeometryReorderPanel.BaseGeometryReorderPanel(operation)
+#         FreeCADGui.Control.showDialog(panel)
+#     
+#     def IsActive(self):
+#         """Return True if command should be active"""
+#         return FreeCAD.ActiveDocument is not None
 
 
 class SplitProfileCommand:
     """Command to split a Profile operation into separate operations (one per base geometry)"""
     
     def GetResources(self):
+        icon_path = os.path.join(os.path.dirname(__file__), 'Resources', 'icons', 'CAM_SplitProfile.svg')
         return {
-            'Pixmap': 'Path_Array',  # Using existing icon as placeholder
+            'Pixmap': icon_path,
             'MenuText': QtCore.QT_TRANSLATE_NOOP("CAM_SplitProfile", "Split Profile into Separate Operations"),
             'ToolTip': QtCore.QT_TRANSLATE_NOOP("CAM_SplitProfile", "Split a Profile with multiple base geometries into separate Profile operations for complete order control")
         }
     
     def Activated(self):
         """Execute when the command is activated"""
-        import SplitProfilePanel
+        from cam import SplitProfilePanel
         
         # Get the active document
         doc = FreeCAD.ActiveDocument
@@ -244,7 +249,107 @@ class SplitProfileCommand:
         return FreeCAD.ActiveDocument is not None
 
 
+class ProductionArrayCommand:
+    """Command to create a production array of parts as separate Bodies"""
+    
+    def GetResources(self):
+        icon_path = os.path.join(os.path.dirname(__file__), 'Resources', 'icons', 'ProductionArray.svg')
+        return {
+            'Pixmap': icon_path,
+            'MenuText': QtCore.QT_TRANSLATE_NOOP("ProductionArray", "Production Array"),
+            'ToolTip': QtCore.QT_TRANSLATE_NOOP("ProductionArray", "Create a parametric array of parts as separate Bodies for production manufacturing")
+        }
+    
+    def Activated(self):
+        """Execute when the command is activated"""
+        from design import ProductionArrayPanel
+        
+        # Get the active document
+        doc = FreeCAD.ActiveDocument
+        if not doc:
+            FreeCAD.Console.PrintError("No active document\n")
+            return
+        
+        # Try to find a selected Sketch
+        sketch = None
+        selection = FreeCADGui.Selection.getSelection()
+        
+        # Check if a Sketch is selected
+        for obj in selection:
+            if obj.TypeId == 'Sketcher::SketchObject':
+                sketch = obj
+                break
+        
+        # If no sketch selected, try to find sketches in the document
+        if not sketch:
+            sketches = []
+            for obj in doc.Objects:
+                if obj.TypeId == 'Sketcher::SketchObject':
+                    # Only include sketches that are not already in a Body with a Pad
+                    is_in_padded_body = False
+                    for parent in obj.InList:
+                        if parent.TypeId == 'PartDesign::Body':
+                            # Check if this body has a Pad
+                            for child in parent.Group:
+                                if 'Pad' in child.TypeId:
+                                    is_in_padded_body = True
+                                    break
+                    
+                    if not is_in_padded_body:
+                        sketches.append(obj)
+            
+            if len(sketches) == 0:
+                FreeCAD.Console.PrintError("No suitable sketches found\n")
+                QtGui.QMessageBox.warning(
+                    None,
+                    "No Sketch Found",
+                    "Please select a sketch to create a production array.\n\n"
+                    "The sketch should contain the profile of ONE part.\n"
+                    "The tool will create multiple copies as separate Bodies."
+                )
+                return
+            elif len(sketches) == 1:
+                sketch = sketches[0]
+            else:
+                # Multiple sketches - ask user to select one
+                items = [sk.Label for sk in sketches]
+                item, ok = QtGui.QInputDialog.getItem(
+                    None,
+                    "Select Sketch",
+                    "Multiple sketches found. Select the master sketch to array:",
+                    items,
+                    0,
+                    False
+                )
+                if ok and item:
+                    sketch = sketches[items.index(item)]
+                else:
+                    return
+        
+        # Check if sketch has geometry
+        if not hasattr(sketch, 'Geometry') or len(sketch.Geometry) == 0:
+            FreeCAD.Console.PrintWarning(f"Sketch {sketch.Label} has no geometry\n")
+            QtGui.QMessageBox.warning(
+                None,
+                "Empty Sketch",
+                f"The selected sketch '{sketch.Label}' has no geometry.\n\n"
+                "Please add geometry to the sketch first."
+            )
+            return
+        
+        # Show the production array panel
+        FreeCAD.Console.PrintMessage(f"Opening Production Array panel for sketch: {sketch.Label}\n")
+        panel = ProductionArrayPanel.ProductionArrayPanel(sketch)
+        FreeCADGui.Control.showDialog(panel)
+    
+    def IsActive(self):
+        """Return True if command should be active"""
+        return FreeCAD.ActiveDocument is not None
+
+
 # Register the commands
 FreeCADGui.addCommand('CAM_ShowOperationVariables', ShowOperationVariablesCommand())
-FreeCADGui.addCommand('CAM_ReorderBaseGeometry', ReorderBaseGeometryCommand())
+# ReorderBaseGeometry removed - use Split Profile and reorder operations in tree instead
+# FreeCADGui.addCommand('CAM_ReorderBaseGeometry', ReorderBaseGeometryCommand())
 FreeCADGui.addCommand('CAM_SplitProfile', SplitProfileCommand())
+FreeCADGui.addCommand('ProductionArray', ProductionArrayCommand())

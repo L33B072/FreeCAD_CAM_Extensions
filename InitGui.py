@@ -15,11 +15,11 @@ import FreeCADGui
 # Import and register commands immediately (available in all workbenches)
 import CAMExtensions_Commands
 
-# Import and apply patches
-import ArcFeedRatePatch
+# Import and apply patches from cam module
+from cam import ArcFeedRatePatch
 
 # Note: ProfileOrderPatch is experimental and not currently used
-# import ProfileOrderPatch
+# from cam import ProfileOrderPatch
 
 FreeCAD.Console.PrintMessage("CAM Extensions loaded - commands registered\n")
 
@@ -68,18 +68,24 @@ class CAMWorkbenchExtension:
             def new_initialize():
                 original_initialize()
                 
-                # Add our commands to CAM workbench
-                cam_extensions_list = [
+                # CAM Tools
+                cam_tools_list = [
                     "CAM_ShowOperationVariables",
-                    "CAM_ReorderBaseGeometry",
                     "CAM_SplitProfile"
                 ]
                 
-                # Add to a submenu in the CAM menu
-                self.cam_wb.appendMenu(["&CAM", "E&xtensions"], cam_extensions_list)
+                # Design Tools
+                design_tools_list = [
+                    "ProductionArray"
+                ]
                 
-                # Add to toolbar
-                self.cam_wb.appendToolbar("CAM Extensions", cam_extensions_list)
+                # Add to submenus in the CAM menu
+                self.cam_wb.appendMenu(["&CAM", "E&xtensions", "CAM Tools"], cam_tools_list)
+                self.cam_wb.appendMenu(["&CAM", "E&xtensions", "Design Tools"], design_tools_list)
+                
+                # Add to toolbar (all tools)
+                all_tools = cam_tools_list + design_tools_list
+                self.cam_wb.appendToolbar("CAM Extensions", all_tools)
                 
                 FreeCAD.Console.PrintMessage("CAM Extensions commands added to CAM workbench\n")
             

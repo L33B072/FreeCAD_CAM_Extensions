@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="64" height="64" version="1.1" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+  <g>
+    <!-- List/table background -->
+    <rect x="8" y="8" width="48" height="48" rx="4" fill="#4a90e2" stroke="#2e5c8a" stroke-width="2"/>
+    
+    <!-- List lines -->
+    <line x1="14" y1="18" x2="50" y2="18" stroke="#ffffff" stroke-width="2" stroke-linecap="round"/>
+    <line x1="14" y1="28" x2="50" y2="28" stroke="#ffffff" stroke-width="2" stroke-linecap="round"/>
+    <line x1="14" y1="38" x2="50" y2="38" stroke="#ffffff" stroke-width="2" stroke-linecap="round"/>
+    <line x1="14" y1="48" x2="50" y2="48" stroke="#ffffff" stroke-width="2" stroke-linecap="round"/>
+    
+    <!-- Variable symbol (x) -->
+    <circle cx="46" cy="18" r="8" fill="#ffa500" stroke="#cc8400" stroke-width="2"/>
+    <text x="46" y="23" font-family="Arial" font-size="14" font-weight="bold" text-anchor="middle" fill="#ffffff">x</text>
+  </g>
+</svg>
