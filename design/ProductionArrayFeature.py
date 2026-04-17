@@ -63,18 +63,29 @@ class ProductionArrayFeature:
                        "Keep master sketch visible").KeepMasterVisible = True
         obj.addProperty("App::PropertyBool", "AutoRename", "Options",
                        "Auto-rename bodies as Part_001, etc.").AutoRename = True
+        obj.addProperty("App::PropertyBool", "HideBodies", "Options",
+                       "Hide individual bodies (show only ProductionArray)").HideBodies = False
         
         # Internal tracking
         obj.addProperty("App::PropertyLinkList", "GeneratedBodies", "Internal",
                        "List of generated bodies")
+        obj.addProperty("App::PropertyLink", "PartContainer", "Internal",
+                       "Part container holding the bodies")
         
         obj.setEditorMode("GeneratedBodies", 1)  # Read-only
+        obj.setEditorMode("PartContainer", 1)  # Read-only
         
     def onChanged(self, obj, prop):
         """Handle property changes"""
         # When MasterSketch changes, trigger recompute
         if prop == "MasterSketch" and hasattr(obj, "MasterSketch") and obj.MasterSketch:
             pass  # Will recompute automatically
+        
+        # When HideBodies changes, update visibility of all bodies
+        if prop == "HideBodies" and hasattr(obj, "GeneratedBodies"):
+            for body in obj.GeneratedBodies:
+                if body and body.Document and hasattr(body, 'ViewObject'):
+                    body.ViewObject.Visibility = not obj.HideBodies
             
     def execute(self, obj):
         """Generate/regenerate the array"""
@@ -98,53 +109,51 @@ class ProductionArrayFeature:
         FreeCAD.Console.PrintMessage(f"=== Array Regenerated Successfully ===\n\n")
         
     def delete_old_bodies(self, obj):
-        """Delete all previously generated bodies"""
-        if not hasattr(obj, 'GeneratedBodies'):
-            return
-            
+        """Delete all previously generated bodies and Part container"""
         doc = obj.Document
         
-        bodies_to_delete = []
-        
-        # Collect bodies that still exist
-        for body in obj.GeneratedBodies:
-            if body and body.Document:  # Check if body still exists
-                bodies_to_delete.append(body)
-        
-        if not bodies_to_delete:
-            return
+        # Delete bodies
+        if hasattr(obj, 'GeneratedBodies'):
+            bodies_to_delete = []
             
-        FreeCAD.Console.PrintMessage(f"  Deleting {len(bodies_to_delete)} old bodies\n")
-        
-        # Delete children FIRST (Pad and Sketch inside each Body)
-        # This prevents them from escaping to document root
-        for body in bodies_to_delete:
-            try:
-                children = body.Group if hasattr(body, 'Group') else []
-                for child in children:
+            # Collect bodies that still exist
+            for body in obj.GeneratedBodies:
+                if body and body.Document:  # Check if body still exists
+                    bodies_to_delete.append(body)
+            
+            if bodies_to_delete:
+                FreeCAD.Console.PrintMessage(f"  Deleting {len(bodies_to_delete)} old bodies\n")
+                
+                # Delete children FIRST (Pad and Sketch inside each Body)
+                # This prevents them from escaping to document root
+                for body in bodies_to_delete:
                     try:
-                        doc.removeObject(child.Name)
+                        children = body.Group if hasattr(body, 'Group') else []
+                        for child in children:
+                            try:
+                                doc.removeObject(child.Name)
+                            except:
+                                pass
                     except:
                         pass
-            except:
-                pass
+                
+                # Delete the bodies themselves
+                for body in bodies_to_delete:
+                    try:
+                        doc.removeObject(body.Name)
+                    except:
+                        pass
+            
+            obj.GeneratedBodies = []
         
-        # Remove bodies from ProductionArray Group BEFORE deleting them
-        # Otherwise they become "pending delete" and may escape
-        current_group = list(obj.Group)
-        for body in bodies_to_delete:
-            if body in current_group:
-                current_group.remove(body)
-        obj.Group = current_group
-        
-        # Now delete the bodies themselves
-        for body in bodies_to_delete:
+        # Delete the Part container
+        if hasattr(obj, 'PartContainer') and obj.PartContainer:
             try:
-                doc.removeObject(body.Name)
+                if obj.PartContainer.Document:
+                    doc.removeObject(obj.PartContainer.Name)
             except:
                 pass
-        
-        obj.GeneratedBodies = []
+            obj.PartContainer = None
         
     def generate_bodies(self, obj):
         """Generate the array of bodies"""
@@ -202,14 +211,21 @@ class ProductionArrayFeature:
         
         FreeCAD.Console.PrintMessage(f"Grid: {count_x} × {count_y} = {count_x * count_y} bodies\n")
         
-        # Create bodies first - use obj.newObject to create them directly inside the ProductionArray container
+        # Create a Part container to hold all bodies (CAM expects Bodies inside Parts)
+        part_container = doc.addObject('App::Part', 'ProductionArray_Parts')
+        
+        # Create bodies inside the Part container for proper CAM support
         bodies_created = []
         body_index = 1
         
         for iy in range(count_y):
             for ix in range(count_x):
-                # Create new body directly inside the ProductionArray (not at document root)
-                body = obj.newObject('PartDesign::Body', 'Body')
+                # Create body inside the Part container
+                body = part_container.newObject('PartDesign::Body', 'Body')
+                
+                # Disable compound shapes - match standalone body behavior
+                if hasattr(body, 'AllowCompound'):
+                    body.AllowCompound = False
                 
                 # Auto-rename if requested
                 if obj.AutoRename:
@@ -218,9 +234,9 @@ class ProductionArrayFeature:
                 bodies_created.append(body)
                 body_index += 1
         
-        # Bodies are already in the Group by virtue of being created with obj.newObject()
-        # Store the list for tracking and deletion
+        # Store references for tracking and deletion
         obj.GeneratedBodies = bodies_created
+        obj.PartContainer = part_container
         
         # Now create features in each body
         body_index = 1
@@ -235,9 +251,11 @@ class ProductionArrayFeature:
                 # Create sketch in body
                 new_sketch = body.newObject('Sketcher::SketchObject', 'Sketch')
                 
-                # Leave sketch unattached - just position it in XY plane at origin
-                # This allows geometry to use absolute coordinates
-                new_sketch.Placement = FreeCAD.Placement()
+                # Position sketch in XY plane at origin (unattached, but properly oriented)
+                new_sketch.Placement = FreeCAD.Placement(
+                    FreeCAD.Vector(0, 0, 0),
+                    FreeCAD.Rotation(0, 0, 0)  # Z-axis is normal
+                )
                 
                 # Copy geometry from master sketch with offset
                 self.copy_sketch_geometry(sketch, new_sketch, offset_x, offset_y)
@@ -251,6 +269,16 @@ class ProductionArrayFeature:
                 # Create Pad
                 pad = body.newObject("PartDesign::Pad", "Pad")
                 pad.Profile = new_sketch
+                
+                # Set reference axis to the body's Z-axis for proper orientation
+                try:
+                    # Try to set reference axis to sketch's N_Axis (normal axis)
+                    pad.ReferenceAxis = (new_sketch, ['N_Axis'])
+                except:
+                    # If that fails, use the body's Z-axis
+                    z_axis = body.Origin.OriginFeatures[2]  # Z-axis from Origin
+                    pad.ReferenceAxis = (z_axis, [''])
+                
                 pad.Length = abs(pad_depth)  # Length is always positive
                 pad.Reversed = reversed_pad  # Direction controlled by Reversed flag
                 
@@ -264,8 +292,15 @@ class ProductionArrayFeature:
                 # This prevents FreeCAD from creating orphaned Pads at document root
                 body.recompute()
                 
+                # Apply visibility setting
+                if obj.HideBodies:
+                    body.ViewObject.Visibility = False
+                
                 FreeCAD.Console.PrintMessage(f"  Created {body.Label} at ({offset_x:.1f}, {offset_y:.1f})\n")
                 body_index += 1
+        
+        # Final document recompute to ensure all bodies are fully initialized for CAM
+        doc.recompute()
         
     def get_sketch_bounding_box(self, sketch):
         """Get bounding box of sketch"""
@@ -367,15 +402,37 @@ class ProductionArrayViewProvider:
         
     def onChanged(self, vobj, prop):
         return
+    
+    def setupContextMenu(self, vobj, menu):
+        """Add context menu items"""
+        from PySide import QtGui
+        
+        # Add Transform menu
+        action = QtGui.QAction(QtGui.QIcon(), "Transform", menu)
+        action.triggered.connect(lambda: self.setEdit(vobj, 0))
+        menu.addAction(action)
+        
+        # Add separator
+        menu.addSeparator()
+        
+    def setEdit(self, vobj, mode=0):
+        """Called when object is double-clicked or Transform is selected"""
+        if mode == 0:
+            # Double-click: Edit parameters
+            from .ProductionArrayPanel import ProductionArrayPanel
+            obj = vobj.Object
+            panel = ProductionArrayPanel(None, feature_object=obj)
+            FreeCADGui.Control.showDialog(panel)
+            return True
+        return False
+    
+    def unsetEdit(self, vobj, mode=0):
+        """Called when edit mode is exited"""
+        return
         
     def doubleClicked(self, vobj):
         """Open panel for editing when double-clicked"""
-        from .ProductionArrayPanel import ProductionArrayPanel
-        
-        obj = vobj.Object
-        panel = ProductionArrayPanel(None, feature_object=obj)
-        FreeCADGui.Control.showDialog(panel)
-        return True
+        return self.setEdit(vobj, 0)
         
     def __getstate__(self):
         return None
@@ -396,6 +453,7 @@ def create_production_array(sketch):
     doc = FreeCAD.ActiveDocument
     
     # Create the feature - use DocumentObjectGroupPython for Group support
+    # This is a parametric generator - individual bodies are used for CAM operations
     obj = doc.addObject("App::DocumentObjectGroupPython", "ProductionArray")
     ProductionArrayFeature(obj)
     

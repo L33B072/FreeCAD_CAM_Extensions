@@ -15,8 +15,8 @@ if (!(Test-Path $dest)) {
     Write-Host "Created destination directory" -ForegroundColor Green
 }
 
-# Copy subdirectories (cam, design, common, Resources)
-$subdirs = @("cam", "design", "common", "Resources")
+# Copy subdirectories (cam, design, common, sketcher, Resources)
+$subdirs = @("cam", "design", "common", "sketcher", "Resources")
 foreach ($subdir in $subdirs) {
     $srcPath = Join-Path $source $subdir
     $dstPath = Join-Path $dest $subdir
