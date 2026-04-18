@@ -163,7 +163,7 @@ FreeCAD_CAM_Extensions/
 To add the Sketcher Parametric Array to your toolbar:
 
 1. **Copy the macro file:**
-   - **Windows:** Copy `ParametricArray.FCMacro` to: `C:\Users\[YourUsername]\AppData\Roaming\FreeCAD\Macro\`
+   - **Windows:** Copy `ParametricArray.FCMacro` to: `C:\Users\[YourUsername]\AppData\Roaming\FreeCAD\v1-1\Macro\`
    - **Linux:** Copy to `~/.FreeCAD/Macro/`
    - **macOS:** Copy to `~/Library/Preferences/FreeCAD/Macro/`
 
