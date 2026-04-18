@@ -56,6 +56,104 @@ class ParametricArrayConstraint:
         return f"Array{max_num + 1:03d}"
     
     @staticmethod
+    def classify_base_geometry(sketch, base_indices):
+        """Classify base geometry type for spacing strategy
+        
+        Returns:
+            str: 'circle' (use center-to-center), 'polygon' (use edge-to-edge), or 'complex'
+        """
+        if not base_indices:
+            return 'complex'
+        
+        base_geos = [sketch.Geometry[i] for i in base_indices]
+        
+        # Check if all circles/arcs
+        if all(g.TypeId in ["Part::GeomCircle", "Part::GeomArcOfCircle"] for g in base_geos):
+            return 'circle'
+        
+        # Check if all lines (potential polygon)
+        if all(g.TypeId == "Part::GeomLineSegment" for g in base_geos):
+            return 'polygon'  # Could add closed-loop check, but all-lines is good enough
+        
+        return 'complex'
+    
+    @staticmethod
+    def find_extreme_points(sketch, geo_indices):
+        """Find extreme points (rightmost, leftmost, topmost, bottommost) of geometry set
+        
+        Returns:
+            dict: {
+                'rightmost': (geo_idx, point_pos),
+                'leftmost': (geo_idx, point_pos),
+                'topmost': (geo_idx, point_pos),
+                'bottommost': (geo_idx, point_pos)
+            }
+        """
+        rightmost = (None, None, float('-inf'))  # (geo_idx, point_pos, x_value)
+        leftmost = (None, None, float('inf'))
+        topmost = (None, None, float('-inf'))  # (geo_idx, point_pos, y_value)
+        bottommost = (None, None, float('inf'))
+        
+        for geo_idx in geo_indices:
+            geo = sketch.Geometry[geo_idx]
+            geo_type = geo.TypeId
+            
+            if geo_type in ["Part::GeomCircle", "Part::GeomArcOfCircle"]:
+                # For circles, center point
+                x, y = geo.Center.x, geo.Center.y
+                if x > rightmost[2]:
+                    rightmost = (geo_idx, 3, x)  # 3 = center point
+                if x < leftmost[2]:
+                    leftmost = (geo_idx, 3, x)
+                if y > topmost[2]:
+                    topmost = (geo_idx, 3, y)
+                if y < bottommost[2]:
+                    bottommost = (geo_idx, 3, y)
+            
+            elif geo_type == "Part::GeomLineSegment":
+                # Check both endpoints
+                start_x, start_y = geo.StartPoint.x, geo.StartPoint.y
+                end_x, end_y = geo.EndPoint.x, geo.EndPoint.y
+                
+                if start_x > rightmost[2]:
+                    rightmost = (geo_idx, 1, start_x)  # 1 = start point
+                if end_x > rightmost[2]:
+                    rightmost = (geo_idx, 2, end_x)  # 2 = end point
+                
+                if start_x < leftmost[2]:
+                    leftmost = (geo_idx, 1, start_x)
+                if end_x < leftmost[2]:
+                    leftmost = (geo_idx, 2, end_x)
+                
+                if start_y > topmost[2]:
+                    topmost = (geo_idx, 1, start_y)
+                if end_y > topmost[2]:
+                    topmost = (geo_idx, 2, end_y)
+                
+                if start_y < bottommost[2]:
+                    bottommost = (geo_idx, 1, start_y)
+                if end_y < bottommost[2]:
+                    bottommost = (geo_idx, 2, end_y)
+            
+            elif geo_type == "Part::GeomPoint":
+                x, y = geo.X, geo.Y
+                if x > rightmost[2]:
+                    rightmost = (geo_idx, 0, x)  # 0 = point itself
+                if x < leftmost[2]:
+                    leftmost = (geo_idx, 0, x)
+                if y > topmost[2]:
+                    topmost = (geo_idx, 0, y)
+                if y < bottommost[2]:
+                    bottommost = (geo_idx, 0, y)
+        
+        return {
+            'rightmost': (rightmost[0], rightmost[1]),
+            'leftmost': (leftmost[0], leftmost[1]),
+            'topmost': (topmost[0], topmost[1]),
+            'bottommost': (bottommost[0], bottommost[1])
+        }
+    
+    @staticmethod
     def copy_internal_constraints(sketch, base_indices, grid, rows, cols):
         """Copy SHAPE constraints (not size) that are internal to the base geometry to all array copies
         
@@ -191,14 +289,13 @@ class ParametricArrayConstraint:
         # Calculate bounding box size of base geometry
         bbox_width, bbox_height = ParametricArrayConstraint.get_geometry_bounding_size(sketch, base_geometry_indices)
         
-        # Calculate actual center-to-center distances
-        # Spacing is the GAP between geometry, so add the geometry size
+        # Calculate actual center-to-center distances (used for circles)
+        # For polygons, we'll use edge-to-edge with just the gap
         actual_col_spacing = bbox_width + col_spacing
         actual_row_spacing = bbox_height + row_spacing
         
         FreeCAD.Console.PrintMessage(f"Base geometry size: {bbox_width:.2f} × {bbox_height:.2f} mm\n")
         FreeCAD.Console.PrintMessage(f"Gap: {col_spacing:.2f} × {row_spacing:.2f} mm\n")
-        FreeCAD.Console.PrintMessage(f"Center-to-center: {actual_col_spacing:.2f} × {actual_row_spacing:.2f} mm\n")
         
         # Store array metadata (store both gap and actual spacing)
         data = ParametricArrayConstraint.get_array_data(sketch)
@@ -208,8 +305,8 @@ class ParametricArrayConstraint:
             'cols': cols,
             'row_spacing': row_spacing,  # User-specified gap
             'col_spacing': col_spacing,  # User-specified gap
-            'actual_row_spacing': actual_row_spacing,  # Calculated center-to-center
-            'actual_col_spacing': actual_col_spacing,  # Calculated center-to-center
+            'actual_row_spacing': actual_row_spacing,  # Calculated (bbox + gap) for circles
+            'actual_col_spacing': actual_col_spacing,  # Calculated (bbox + gap) for circles
             'copy_indices': []  # Will be filled as we create copies
         }
         
@@ -322,47 +419,96 @@ class ParametricArrayConstraint:
         
         # Add parametric constraints for array spacing
         constraint_indices = []
-        FreeCAD.Console.PrintMessage("Adding parametric constraints...\n")
         
-        # Add horizontal constraints (between columns in each row)
-        # Only use the FIRST geometry element as reference point to avoid redundancy
-        # (Internal constraints make all elements move together as a rigid body)
-        for row in range(rows):
-            for col in range(cols - 1):
-                # Use only the first geometry element in each cell as reference
-                geo_idx_left = grid[row][col][0]
-                geo_idx_right = grid[row][col + 1][0]
-                
-                # Determine point type for constraint (center for circles, start point for lines)
-                geo_left = sketch.Geometry[geo_idx_left]
-                point_type = ParametricArrayConstraint.get_constraint_point_type(geo_left)
-                
-                # DistanceX constraint
-                constraint = Sketcher.Constraint('DistanceX', 
-                                                geo_idx_left, point_type,
-                                                geo_idx_right, point_type,
-                                                actual_col_spacing)
-                constraint_idx = sketch.addConstraint(constraint)
-                constraint_indices.append(constraint_idx)
+        # Classify base geometry to determine spacing strategy
+        geometry_type = ParametricArrayConstraint.classify_base_geometry(sketch, base_geometry_indices)
+        FreeCAD.Console.PrintMessage(f"Base geometry type: {geometry_type}\n")
         
-        # Add vertical constraints (between rows in each column)
-        # Only use the FIRST geometry element as reference point to avoid redundancy
-        for col in range(cols):
-            for row in range(rows - 1):
-                # Use only the first geometry element in each cell as reference
-                geo_idx_top = grid[row][col][0]
-                geo_idx_bottom = grid[row + 1][col][0]
-                
-                geo_top = sketch.Geometry[geo_idx_top]
-                point_type = ParametricArrayConstraint.get_constraint_point_type(geo_top)
-                
-                # DistanceY constraint
-                constraint = Sketcher.Constraint('DistanceY',
-                                                geo_idx_top, point_type,
-                                                geo_idx_bottom, point_type,
-                                                actual_row_spacing)
-                constraint_idx = sketch.addConstraint(constraint)
-                constraint_indices.append(constraint_idx)
+        if geometry_type == 'circle':
+            # For circles: Use center-to-center spacing
+            # User's "gap" input means center-to-center distance, not edge-to-edge
+            FreeCAD.Console.PrintMessage("Using center-to-center spacing for circles\n")
+            
+            # Add horizontal constraints (between columns in each row)
+            for row in range(rows):
+                for col in range(cols - 1):
+                    # Use first (only) geometry element - the circle
+                    geo_idx_left = grid[row][col][0]
+                    geo_idx_right = grid[row][col + 1][0]
+                    
+                    # DistanceX constraint using center points
+                    # Use col_spacing directly (center-to-center), not actual_col_spacing (edge-to-edge)
+                    constraint = Sketcher.Constraint('DistanceX', 
+                                                    geo_idx_left, 3,  # 3 = center point
+                                                    geo_idx_right, 3,
+                                                    col_spacing)  # Center-to-center distance
+                    constraint_idx = sketch.addConstraint(constraint)
+                    constraint_indices.append(constraint_idx)
+            
+            # Add vertical constraints (between rows in each column)
+            for col in range(cols):
+                for row in range(rows - 1):
+                    geo_idx_top = grid[row][col][0]
+                    geo_idx_bottom = grid[row + 1][col][0]
+                    
+                    # DistanceY constraint using center points
+                    # Use row_spacing directly (center-to-center)
+                    constraint = Sketcher.Constraint('DistanceY',
+                                                    geo_idx_top, 3,  # 3 = center point
+                                                    geo_idx_bottom, 3,
+                                                    row_spacing)  # Center-to-center distance
+                    constraint_idx = sketch.addConstraint(constraint)
+                    constraint_indices.append(constraint_idx)
+        
+        else:
+            # For polygons/complex: Use edge-to-edge spacing
+            FreeCAD.Console.PrintMessage("Using edge-to-edge spacing (facing edges)\n")
+            
+            # Find extreme points of base geometry
+            base_extremes = ParametricArrayConstraint.find_extreme_points(sketch, base_geometry_indices)
+            
+            # Add horizontal constraints (between columns in each row)
+            for row in range(rows):
+                for col in range(cols - 1):
+                    # Find rightmost point of left cell and leftmost point of right cell
+                    left_cell_geos = grid[row][col]
+                    right_cell_geos = grid[row][col + 1]
+                    
+                    left_extremes = ParametricArrayConstraint.find_extreme_points(sketch, left_cell_geos)
+                    right_extremes = ParametricArrayConstraint.find_extreme_points(sketch, right_cell_geos)
+                    
+                    # Constrain: rightmost of left cell to leftmost of right cell = gap
+                    left_geo_idx, left_point_pos = left_extremes['rightmost']
+                    right_geo_idx, right_point_pos = right_extremes['leftmost']
+                    
+                    constraint = Sketcher.Constraint('DistanceX',
+                                                    left_geo_idx, left_point_pos,
+                                                    right_geo_idx, right_point_pos,
+                                                    col_spacing)  # Use gap, not bbox+gap
+                    constraint_idx = sketch.addConstraint(constraint)
+                    constraint_indices.append(constraint_idx)
+            
+            # Add vertical constraints (between rows in each column)
+            for col in range(cols):
+                for row in range(rows - 1):
+                    # Find bottommost point of top cell and topmost point of bottom cell
+                    top_cell_geos = grid[row][col]
+                    bottom_cell_geos = grid[row + 1][col]
+                    
+                    top_extremes = ParametricArrayConstraint.find_extreme_points(sketch, top_cell_geos)
+                    bottom_extremes = ParametricArrayConstraint.find_extreme_points(sketch, bottom_cell_geos)
+                    
+                    # Constrain: topmost of first row to bottommost of second row = gap
+                    # (Arrays go upward with positive Y offset)
+                    top_geo_idx, top_point_pos = top_extremes['topmost']
+                    bottom_geo_idx, bottom_point_pos = bottom_extremes['bottommost']
+                    
+                    constraint = Sketcher.Constraint('DistanceY',
+                                                    top_geo_idx, top_point_pos,
+                                                    bottom_geo_idx, bottom_point_pos,
+                                                    row_spacing)  # Use gap, not bbox+gap
+                    constraint_idx = sketch.addConstraint(constraint)
+                    constraint_indices.append(constraint_idx)
         
         FreeCAD.Console.PrintMessage(f"Added {len(constraint_indices)} spacing constraints\n")
         

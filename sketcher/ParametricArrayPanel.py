@@ -78,8 +78,11 @@ class ParametricArrayPanel:
         
         # Description
         desc = QtGui.QLabel(
-            "Creates a parametric rectangular array of the selected geometry.\n"
-            "Gap values specify the space between geometry edges, not center-to-center."
+            "Creates a parametric rectangular array of the selected geometry.\n\n"
+            "<b>Spacing behavior:</b>\n"
+            "• Circles/Arcs: Gap = center-to-center distance\n"
+            "• Polygons/Lines: Gap = edge-to-edge distance\n\n"
+            "Changing base geometry size automatically updates all copies!"
         )
         desc.setWordWrap(True)
         desc.setStyleSheet("color: #555; font-size: 9pt;")
@@ -114,7 +117,7 @@ class ParametricArrayPanel:
         self.row_spacing_spin.setValue(2.0)
         self.row_spacing_spin.setDecimals(3)
         self.row_spacing_spin.setSuffix(" in")
-        self.row_spacing_spin.setToolTip("Gap between rows (edge to edge)")
+        self.row_spacing_spin.setToolTip("Gap between rows\nCircles: center-to-center | Polygons: edge-to-edge")
         config_layout.addRow("Row Gap:", self.row_spacing_spin)
         
         # Column Spacing
@@ -124,7 +127,7 @@ class ParametricArrayPanel:
         self.col_spacing_spin.setValue(2.0)
         self.col_spacing_spin.setDecimals(3)
         self.col_spacing_spin.setSuffix(" in")
-        self.col_spacing_spin.setToolTip("Gap between columns (edge to edge)")
+        self.col_spacing_spin.setToolTip("Gap between columns\nCircles: center-to-center | Polygons: edge-to-edge")
         config_layout.addRow("Column Gap:", self.col_spacing_spin)
         
         config_group.setLayout(config_layout)

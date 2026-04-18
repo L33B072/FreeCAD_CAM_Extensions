@@ -1,0 +1,42 @@
+# -*- coding: utf-8 -*-
+# ***************************************************************************
+# *   Parametric Array Macro                                                *
+# *   Quick access macro for Sketcher Parametric Rectangular Array         *
+# ***************************************************************************
+# Macro: ParametricArray
+# Description: Create parametric rectangular arrays with automatic size propagation
+# Icon: ProductionArray.svg
+# Menu: Sketch
+# Submenu: Arrays
+# Shortcut: 
+# ***************************************************************************
+
+"""
+This macro provides quick access to the Parametric Rectangular Array tool
+from the FreeCAD_CAM_Extensions package.
+
+To use:
+1. Open a sketch in edit mode
+2. Select the geometry you want to array
+3. Run this macro (or assign it to a toolbar button)
+
+The Parametric Array dialog will appear, allowing you to create a
+fully parametric rectangular array with automatic size propagation.
+"""
+
+import FreeCAD
+import FreeCADGui
+
+# Check if we're in a sketch
+try:
+    if FreeCADGui.ActiveDocument is None:
+        FreeCAD.Console.PrintError("No active document. Please open a document first.\n")
+    else:
+        edit_obj = FreeCADGui.ActiveDocument.getInEdit()
+        if edit_obj is None or edit_obj.Object.TypeId != 'Sketcher::SketchObject':
+            FreeCAD.Console.PrintError("Please edit a sketch first (double-click on a sketch).\n")
+        else:
+            # Run the Parametric Array command
+            FreeCADGui.runCommand('Sketcher_ParametricArray')
+except Exception as e:
+    FreeCAD.Console.PrintError(f"Error running Parametric Array: {e}\n")

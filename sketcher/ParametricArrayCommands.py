@@ -19,7 +19,7 @@ class CreateParametricArrayCommand:
     def GetResources(self):
         import os
         icon_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 
-                                'Resources', 'icons', 'Sketcher_ParametricArray.svg')
+                                'Resources', 'icons', 'ProductionArray.svg')
         return {
             'Pixmap': icon_path,
             'MenuText': QtCore.QT_TRANSLATE_NOOP("Sketcher_ParametricArray", "Parametric Rectangular Array"),
