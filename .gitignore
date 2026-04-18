@@ -13,6 +13,7 @@ __pycache__/
 # IDEs
 .vscode/
 .idea/
+*.code-workspace
 *.swp
 *.swo
 *~
