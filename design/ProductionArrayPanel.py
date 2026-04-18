@@ -33,7 +33,34 @@ class ProductionArrayPanel:
         if self.is_editing:
             self.sketch = feature_object.MasterSketch
         
+        # Detect document units
+        self.unit_suffix, self.unit_name = self.get_document_units()
+        
         self.form = self.create_ui()
+    
+    def get_document_units(self):
+        """Detect the document's unit system
+        
+        Returns:
+            tuple: (suffix_string, unit_name) e.g. (" in", "in") or (" mm", "mm")
+        """
+        try:
+            # Get unit schema from FreeCAD preferences
+            # 0 = Standard (mm), 1 = MKS (m), 2 = Imperial (inch), 
+            # 3 = Building Euro (mm), 4 = Building US (inch), etc.
+            schema = FreeCAD.Units.getSchema()
+            
+            # Imperial schemes use inches
+            if schema in [2, 4, 7]:  # Imperial, Building US, Imperial Civil Engineering
+                return (" in", "in")
+            else:
+                # All other schemes use metric (mm)
+                return (" mm", "mm")
+                
+        except:
+            # Default to inches if detection fails (for backwards compatibility)
+            FreeCAD.Console.PrintWarning("Could not detect units, defaulting to inches\n")
+            return (" in", "in")
         
     def create_ui(self):
         """Create the UI for the panel"""
@@ -94,7 +121,7 @@ class ProductionArrayPanel:
         self.spacing_x_spin.setMaximum(1000.0)
         self.spacing_x_spin.setValue(1.0)
         self.spacing_x_spin.setDecimals(3)
-        self.spacing_x_spin.setSuffix(" in")
+        self.spacing_x_spin.setSuffix(self.unit_suffix)
         self.spacing_x_spin.setToolTip("Gap between parts in X direction (part size added automatically if checked below)")
         config_layout.addRow("Gap X:", self.spacing_x_spin)
         
@@ -112,7 +139,7 @@ class ProductionArrayPanel:
         self.spacing_y_spin.setMaximum(1000.0)
         self.spacing_y_spin.setValue(1.0)
         self.spacing_y_spin.setDecimals(3)
-        self.spacing_y_spin.setSuffix(" in")
+        self.spacing_y_spin.setSuffix(self.unit_suffix)
         self.spacing_y_spin.setToolTip("Gap between parts in Y direction (part size added automatically if checked below)")
         config_layout.addRow("Gap Y:", self.spacing_y_spin)
         
@@ -131,7 +158,7 @@ class ProductionArrayPanel:
         self.overall_x_spin.setMaximum(10000.0)
         self.overall_x_spin.setValue(20.0)
         self.overall_x_spin.setDecimals(3)
-        self.overall_x_spin.setSuffix(" in")
+        self.overall_x_spin.setSuffix(self.unit_suffix)
         self.overall_x_spin.setToolTip("Total distance from first to last part in X direction")
         self.overall_x_label = QtGui.QLabel("Overall X:")
         config_layout.addRow(self.overall_x_label, self.overall_x_spin)
@@ -141,7 +168,7 @@ class ProductionArrayPanel:
         self.overall_y_spin.setMaximum(10000.0)
         self.overall_y_spin.setValue(96.0)
         self.overall_y_spin.setDecimals(3)
-        self.overall_y_spin.setSuffix(" in")
+        self.overall_y_spin.setSuffix(self.unit_suffix)
         self.overall_y_spin.setToolTip("Total distance from first to last part in Y direction")
         self.overall_y_label = QtGui.QLabel("Overall Y:")
         config_layout.addRow(self.overall_y_label, self.overall_y_spin)
@@ -159,7 +186,7 @@ class ProductionArrayPanel:
         self.pad_depth_spin.setMaximum(1000.0)
         self.pad_depth_spin.setValue(0.5)
         self.pad_depth_spin.setDecimals(3)
-        self.pad_depth_spin.setSuffix(" in")
+        self.pad_depth_spin.setSuffix(self.unit_suffix)
         self.pad_depth_spin.setToolTip("Extrusion depth for each body")
         extrude_layout.addRow("Pad Depth:", self.pad_depth_spin)
         
@@ -274,9 +301,9 @@ class ProductionArrayPanel:
             gap_x = self.spacing_x_spin.value()
             gap_y = self.spacing_y_spin.value()
             if self.add_part_size_check.isChecked():
-                summary += f"<br>Gap: {gap_x}\" × {gap_y}\" (+ part size)"
+                summary += f"<br>Gap: {gap_x}{self.unit_name} × {gap_y}{self.unit_name} (+ part size)"
             else:
-                summary += f"<br>Spacing: {gap_x}\" × {gap_y}\""
+                summary += f"<br>Spacing: {gap_x}{self.unit_name} × {gap_y}{self.unit_name}"
         else:
             overall_x = self.overall_x_spin.value()
             overall_y = self.overall_y_spin.value()
@@ -286,8 +313,14 @@ class ProductionArrayPanel:
             if bbox:
                 part_size_x_mm = bbox['max_x'] - bbox['min_x']
                 part_size_y_mm = bbox['max_y'] - bbox['min_y']
-                part_size_x = part_size_x_mm / 25.4  # Convert to inches
-                part_size_y = part_size_y_mm / 25.4  # Convert to inches
+                
+                # Convert to current units
+                if self.unit_name == "in":
+                    part_size_x = part_size_x_mm / 25.4  # Convert mm to inches
+                    part_size_y = part_size_y_mm / 25.4
+                else:
+                    part_size_x = part_size_x_mm  # Already in mm
+                    part_size_y = part_size_y_mm
             else:
                 part_size_x = 0.0
                 part_size_y = 0.0
@@ -295,10 +328,10 @@ class ProductionArrayPanel:
             # Calculate actual spacing (accounting for part size)
             if count_x > 1:
                 calc_x = (overall_x - part_size_x) / (count_x - 1)
-                summary += f"<br>Overall X: {overall_x}\" (spacing: {calc_x:.3f}\")"
+                summary += f"<br>Overall X: {overall_x}{self.unit_name} (spacing: {calc_x:.3f}{self.unit_name})"
             if count_y > 1:
                 calc_y = (overall_y - part_size_y) / (count_y - 1)
-                summary += f"<br>Overall Y: {overall_y}\" (spacing: {calc_y:.3f}\")"
+                summary += f"<br>Overall Y: {overall_y}{self.unit_name} (spacing: {calc_y:.3f}{self.unit_name})"
         
         self.summary_label.setText(summary)
     
@@ -319,17 +352,17 @@ class ProductionArrayPanel:
         else:
             self.overall_mode_radio.setChecked(True)
         
-        # Load gap spacing
-        self.spacing_x_spin.setValue(obj.GapX.getValueAs("in"))
-        self.spacing_y_spin.setValue(obj.GapY.getValueAs("in"))
+        # Load gap spacing (convert to current units)
+        self.spacing_x_spin.setValue(obj.GapX.getValueAs(self.unit_name))
+        self.spacing_y_spin.setValue(obj.GapY.getValueAs(self.unit_name))
         self.add_part_size_check.setChecked(obj.AddPartSize)
         
-        # Load overall spacing
-        self.overall_x_spin.setValue(obj.OverallX.getValueAs("in"))
-        self.overall_y_spin.setValue(obj.OverallY.getValueAs("in"))
+        # Load overall spacing (convert to current units)
+        self.overall_x_spin.setValue(obj.OverallX.getValueAs(self.unit_name))
+        self.overall_y_spin.setValue(obj.OverallY.getValueAs(self.unit_name))
         
-        # Load extrusion
-        self.pad_depth_spin.setValue(obj.PadDepth.getValueAs("in"))
+        # Load extrusion (convert to current units)
+        self.pad_depth_spin.setValue(obj.PadDepth.getValueAs(self.unit_name))
         self.reversed_check.setChecked(obj.Reversed)
         
         # Load options
@@ -366,16 +399,16 @@ class ProductionArrayPanel:
                 obj.SpacingMode = "Overall"
             
             # Gap spacing
-            obj.GapX = f"{self.spacing_x_spin.value()} in"
-            obj.GapY = f"{self.spacing_y_spin.value()} in"
+            obj.GapX = f"{self.spacing_x_spin.value()} {self.unit_name}"
+            obj.GapY = f"{self.spacing_y_spin.value()} {self.unit_name}"
             obj.AddPartSize = self.add_part_size_check.isChecked()
             
             # Overall spacing
-            obj.OverallX = f"{self.overall_x_spin.value()} in"
-            obj.OverallY = f"{self.overall_y_spin.value()} in"
+            obj.OverallX = f"{self.overall_x_spin.value()} {self.unit_name}"
+            obj.OverallY = f"{self.overall_y_spin.value()} {self.unit_name}"
             
             # Extrusion
-            obj.PadDepth = f"{self.pad_depth_spin.value()} in"
+            obj.PadDepth = f"{self.pad_depth_spin.value()} {self.unit_name}"
             obj.Reversed = self.reversed_check.isChecked()
             
             # Options
@@ -432,16 +465,16 @@ class ProductionArrayPanel:
                 obj.SpacingMode = "Overall"
             
             # Gap spacing
-            obj.GapX = f"{self.spacing_x_spin.value()} in"
-            obj.GapY = f"{self.spacing_y_spin.value()} in"
+            obj.GapX = f"{self.spacing_x_spin.value()} {self.unit_name}"
+            obj.GapY = f"{self.spacing_y_spin.value()} {self.unit_name}"
             obj.AddPartSize = self.add_part_size_check.isChecked()
             
             # Overall spacing
-            obj.OverallX = f"{self.overall_x_spin.value()} in"
-            obj.OverallY = f"{self.overall_y_spin.value()} in"
+            obj.OverallX = f"{self.overall_x_spin.value()} {self.unit_name}"
+            obj.OverallY = f"{self.overall_y_spin.value()} {self.unit_name}"
             
             # Extrusion
-            obj.PadDepth = f"{self.pad_depth_spin.value()} in"
+            obj.PadDepth = f"{self.pad_depth_spin.value()} {self.unit_name}"
             obj.Reversed = self.reversed_check.isChecked()
             
             # Options
