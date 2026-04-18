@@ -135,7 +135,7 @@ class SketcherWorkbenchObserver:
                 sketch_menu.addSeparator()
                 action = sketch_menu.addAction("Parametric Rectangular Array")
                 action.triggered.connect(lambda: FreeCADGui.runCommand('Sketcher_ParametricArray'))
-                action.setIcon(FreeCAD.getHomePath() + "Mod/FreeCAD_CAM_Extensions/Resources/icons/Sketcher_ParametricArray.svg")
+                action.setIcon(FreeCAD.getHomePath() + "Mod/FreeCAD_CAM_Extensions/Resources/icons/ProductionArray.svg")
                 FreeCAD.Console.PrintMessage("CAM Extensions: Parametric Array added to Sketch menu\n")
             else:
                 FreeCAD.Console.PrintWarning("Could not find Sketch menu\n")
@@ -147,7 +147,7 @@ class SketcherWorkbenchObserver:
                     if "Sketcher geometries" in toolbar.windowTitle():
                         action = toolbar.addAction("Array")
                         action.triggered.connect(lambda: FreeCADGui.runCommand('Sketcher_ParametricArray'))
-                        action.setIcon(FreeCAD.getHomePath() + "Mod/FreeCAD_CAM_Extensions/Resources/icons/Sketcher_ParametricArray.svg")
+                        action.setIcon(FreeCAD.getHomePath() + "Mod/FreeCAD_CAM_Extensions/Resources/icons/ProductionArray.svg")
                         action.setToolTip("Parametric Rectangular Array")
                         FreeCAD.Console.PrintMessage("CAM Extensions: Array button added to toolbar\n")
                         break
