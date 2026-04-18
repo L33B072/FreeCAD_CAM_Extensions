@@ -108,70 +108,8 @@ except Exception as e:
     FreeCAD.Console.PrintWarning(f"CAM Extensions initialization: {e}\n")
 
 
-# Observer and Extension classes for Sketcher workbench
-class SketcherWorkbenchObserver:
-    """Observer to inject menu items when Sketcher workbench is activated"""
-    
-    def workbenchActivated(self, workbench_name):
-        """Called when a workbench is activated"""
-        if workbench_name == "SketcherWorkbench":
-            self.inject_sketcher_menu()
-    
-    def inject_sketcher_menu(self):
-        """Inject our command into Sketcher's menu structure"""
-        try:
-            # Get the main window
-            mw = FreeCADGui.getMainWindow()
-            
-            # Find the Sketch menu
-            sketch_menu = None
-            for action in mw.menuBar().actions():
-                if action.text().replace("&", "") == "Sketch":
-                    sketch_menu = action.menu()
-                    break
-            
-            if sketch_menu:
-                # Add separator and our command
-                sketch_menu.addSeparator()
-                action = sketch_menu.addAction("Parametric Rectangular Array")
-                action.triggered.connect(lambda: FreeCADGui.runCommand('Sketcher_ParametricArray'))
-                action.setIcon(FreeCAD.getHomePath() + "Mod/FreeCAD_CAM_Extensions/Resources/icons/ProductionArray.svg")
-                FreeCAD.Console.PrintMessage("CAM Extensions: Parametric Array added to Sketch menu\n")
-            else:
-                FreeCAD.Console.PrintWarning("Could not find Sketch menu\n")
-                
-            # Try to add toolbar button
-            try:
-                # Find Sketcher geometries toolbar
-                for toolbar in mw.findChildren(QtGui.QToolBar):
-                    if "Sketcher geometries" in toolbar.windowTitle():
-                        action = toolbar.addAction("Array")
-                        action.triggered.connect(lambda: FreeCADGui.runCommand('Sketcher_ParametricArray'))
-                        action.setIcon(FreeCAD.getHomePath() + "Mod/FreeCAD_CAM_Extensions/Resources/icons/ProductionArray.svg")
-                        action.setToolTip("Parametric Rectangular Array")
-                        FreeCAD.Console.PrintMessage("CAM Extensions: Array button added to toolbar\n")
-                        break
-            except Exception as e:
-                FreeCAD.Console.PrintWarning(f"Could not add toolbar button: {e}\n")
-        
-        except Exception as e:
-            FreeCAD.Console.PrintWarning(f"Could not inject Sketcher menu: {e}\n")
-            import traceback
-            traceback.print_exc()
-
-
-class SketcherWorkbenchExtension:
-    """Extension to add parametric array command to the Sketcher workbench"""
-    
-    def __init__(self):
-        # Register a workbench activated observer to inject menu when Sketcher loads
-        self.observer = SketcherWorkbenchObserver()
-        FreeCADGui.getMainWindow().workbenchActivated.connect(self.observer.workbenchActivated)
-        FreeCAD.Console.PrintMessage("CAM Extensions: Sketcher parametric array available\n")
-
-
-# Initialize Sketcher extension
-try:
-    sketcher_extension = SketcherWorkbenchExtension()
-except Exception as e:
-    FreeCAD.Console.PrintWarning(f"Sketcher Extensions initialization: {e}\n")
+# Sketcher menu integration disabled - use the macro instead
+# The ParametricArray.FCMacro provides toolbar access to the parametric array tool
+# See ADD_TO_TOOLBAR.md for setup instructions
+FreeCAD.Console.PrintMessage("CAM Extensions: Sketcher Parametric Array available via macro\n")
+FreeCAD.Console.PrintMessage("  See ADD_TO_TOOLBAR.md for toolbar setup instructions\n")
