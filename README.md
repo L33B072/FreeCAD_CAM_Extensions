@@ -73,7 +73,34 @@ Enhanced features for FreeCAD's CAM (Path) workbench.
 
 **Coming soon:** Auto-refresh to update all array Bodies when master sketch changes
 
-### 5. Advanced Toolpath Linking Controls (Planned)
+### 6. Sketcher Parametric Array ⭐ **NEW - True Parametric Sketch Arrays**
+- **Fully parametric rectangular arrays** - Create arrays directly in sketches with automatic size propagation
+- **Smart spacing** - Geometry-aware spacing: edge-to-edge for polygons, center-to-center for circles
+- **Automatic updates** - Change base geometry size, all copies update automatically via constraints
+- **Live preview** - See total array dimensions before creating
+- **Toolbar access** - Add to custom toolbar for quick access (see installation below)
+- **Professional workflow** - Perfect for hole patterns, bolt circles, repeated features
+
+**How it works:**
+1. Enter sketch edit mode (double-click a sketch)
+2. Create your base geometry (rectangle, circle, polygon, etc.)
+3. Run Parametric Array command (via toolbar macro)
+4. Set rows, columns, and gap spacing
+5. Array is created with smart constraints
+6. **Change base geometry** → All copies update automatically! 🎯
+
+**Smart spacing behavior:**
+- **Circles/Arcs:** Gap = center-to-center distance
+- **Polygons/Lines:** Gap = edge-to-edge distance (facing edges)
+- **Mixed geometry:** Handled intelligently based on geometry type
+
+**Perfect for:**
+- Bolt hole patterns
+- Ventilation grilles
+- Repeated cutouts or features
+- Any sketch pattern that needs to stay synchronized with base geometry
+
+### 7. Advanced Toolpath Linking Controls (Planned)
 - Enhanced control over toolpath linking behavior
 - Coming soon
 
@@ -117,12 +144,57 @@ FreeCAD_CAM_Extensions/
 4. Click Install
 
 ### Method 2: Manual Installation
+
+#### Step 1: Install the Extension
 1. Download or clone this repository
-2. Copy the entire folder to your FreeCAD Mod directory:
-   - **Windows (FreeCAD 1.0+)**: `C:\Users\[YourUsername]\AppData\Roaming\FreeCAD\v1-1\Mod\` (note: version number in path)
-   - **Linux**: `~/.FreeCAD/Mod/`
-   - **macOS**: `~/Library/Application Support/FreeCAD/Mod/`
-3. Restart FreeCAD
+2. **Option A - Automated (Windows):**
+   - Open PowerShell in the repository folder
+   - Run: `.\deploy_to_freecad.ps1`
+   - This automatically copies all files to the correct location
+3. **Option B - Manual:**
+   - Copy the entire folder to your FreeCAD Mod directory:
+     - **Windows (FreeCAD 1.0+)**: `C:\Users\[YourUsername]\AppData\Roaming\FreeCAD\v1-1\Mod\FreeCAD_CAM_Extensions`
+     - **Linux**: `~/.FreeCAD/Mod/FreeCAD_CAM_Extensions`
+     - **macOS**: `~/Library/Application Support/FreeCAD/Mod/FreeCAD_CAM_Extensions`
+4. Restart FreeCAD
+
+#### Step 2: Install Sketcher Array Macro (Optional - for Toolbar Access)
+
+To add the Sketcher Parametric Array to your toolbar:
+
+1. **Copy the macro file:**
+   - **Windows:** Copy `ParametricArray.FCMacro` to: `C:\Users\[YourUsername]\AppData\Roaming\FreeCAD\Macro\`
+   - **Linux:** Copy to `~/.FreeCAD/Macro/`
+   - **macOS:** Copy to `~/Library/Preferences/FreeCAD/Macro/`
+
+2. **Copy the icon file:**
+   - Copy `Resources/icons/ProductionArray.svg` to the same Macro folder
+
+3. **Restart FreeCAD**
+
+4. **Set the macro icon:**
+   - Go to **Tools → Customize...**
+   - Click the **Macros** tab
+   - Find `ParametricArray` in the list
+   - Click the **Icon** button
+   - Navigate to your FreeCAD Macro folder
+   - Select **ProductionArray.svg**
+   - Click **Open**
+
+5. **Add to toolbar:**
+   - Still in **Tools → Customize...**, switch to the **Toolbars** tab
+   - Click **New...** to create a custom toolbar (name it "Sketch Tools" or similar)
+   - Switch back to the **Macros** tab
+   - Select `ParametricArray`
+   - Click the **→** button to add it to your toolbar
+   - Click **Close**
+
+**Detailed instructions:** See `ADD_TO_TOOLBAR.md` in the repository for complete step-by-step guide with screenshots.
+
+**Alternative access:** You can also run the command from the Python console while in sketch edit mode:
+```python
+FreeCADGui.runCommand('Sketcher_ParametricArray')
+```
 
 ## Usage
 
@@ -238,6 +310,67 @@ FreeCAD_CAM_Extensions/
 **When to use which mode:**
 - **Gap Spacing**: When you care about the gap between parts (e.g., for cutting clearance, material separation)
 - **Overall Spacing**: When you need to fit parts into a fixed area (e.g., material sheet size, machine work envelope)
+
+### Sketcher Parametric Array ⭐
+1. **Open a sketch** for editing (double-click a sketch in the tree, or create a new one)
+2. **Create your base geometry:**
+   - Draw a rectangle, circle, polygon, or any sketch geometry
+   - This is the "master" that will be arrayed
+3. **Select the geometry** you want to array (click on it)
+4. **Run the Parametric Array command:**
+   - Click your custom toolbar button (if you installed the macro)
+   - OR run from Python console: `FreeCADGui.runCommand('Sketcher_ParametricArray')`
+5. **Configure the array** in the dialog:
+   - **Rows**: Number of copies in vertical direction (e.g., 3)
+   - **Columns**: Number of copies in horizontal direction (e.g., 5)
+   - **Column Gap**: Spacing between columns
+   - **Row Gap**: Spacing between rows
+6. **Preview the total dimensions** shown at the bottom of the dialog
+7. Click **Create Array**
+8. **Result:** Array is created with parametric constraints!
+
+**✨ Fully Parametric Behavior:**
+- Change the base geometry size (e.g., resize the rectangle)
+- **All copies update automatically** via constraints! 🎯
+- Edit the gap spacing by modifying the constraints in the sketch
+- Everything stays synchronized
+
+**Smart Spacing Examples:**
+
+*Example 1: Rectangle Array (edge-to-edge)*
+- Base: 2" × 3" rectangle
+- Columns: 4, Rows: 3
+- Column Gap: 0.5", Row Gap: 0.5"
+- **Behavior:** Gap measures from right edge of one rectangle to left edge of next
+- **Total width:** 2" + 0.5" + 2" + 0.5" + 2" + 0.5" + 2" = 10.5"
+- **Resize base to 3" × 3"** → Total width becomes 14.5" automatically!
+
+*Example 2: Circle Array (center-to-center)*
+- Base: 1" diameter circle
+- Columns: 6, Rows: 1 (linear pattern)
+- Column Gap: 2.5"
+- **Behavior:** Gap measures from center of one circle to center of next
+- **Total width:** (6-1) × 2.5" = 12.5" (span between first and last centers)
+- **Change diameter to 2"** → Spacing stays 2.5" center-to-center automatically!
+
+*Example 3: Bolt Hole Pattern*
+- Create one bolt hole (circle)
+- Array: 4 columns × 3 rows
+- Column gap: 4", Row gap: 3"
+- Later: **Change hole diameter** from 0.25" to 0.375" → All 12 holes update instantly!
+
+**Tips:**
+- **Mixed geometry:** If you select multiple types (circles + rectangles), the tool intelligently handles each type
+- **Live preview:** The dialog shows total array dimensions before you create it
+- **Validation:** The tool checks for potential overlaps and warns you
+- **Undo/Redo:** Fully integrated with FreeCAD's undo system
+
+**Perfect for:**
+- Mounting hole patterns
+- Ventilation grilles  
+- Repeated features in sheet metal
+- Bolt circles
+- Any parametric pattern that needs to adapt to design changes
 
 ### Arc Feed Rate Control
 1. Create or select a Profile operation
