@@ -176,24 +176,33 @@ class SplitProfileCommand:
             operations = []
             for obj in doc.Objects:
                 if hasattr(obj, 'Proxy') and obj.Proxy.__class__.__name__ == 'ObjectProfile':
-                    if hasattr(obj, 'Base') and len(obj.Base) > 1:  # Only profiles with multiple base geometries
-                        operations.append(obj)
+                    # Include ALL profiles - we can auto-discover base geometries if needed
+                    operations.append(obj)
             
             if len(operations) == 0:
-                FreeCAD.Console.PrintError("No Profile operations with multiple base geometries found\n")
+                FreeCAD.Console.PrintError("No Profile operations found\n")
                 QtGui.QMessageBox.warning(
                     None,
                     "No Profile Found",
-                    "Please select a Profile operation with multiple base geometries first.\n\n"
+                    "Please select a Profile operation first.\n\n"
                     "This tool splits a Profile into separate operations (one per base geometry) "
-                    "so you have complete control over the cutting order."
+                    "so you have complete control over the cutting order.\n\n"
+                    "If your Profile doesn't have explicit base geometries, they will be "
+                    "auto-discovered from the Job's Model (bottom faces)."
                 )
                 return
             elif len(operations) == 1:
                 operation = operations[0]
             else:
                 # Multiple operations - ask user to select one
-                items = [f"{op.Label} ({len(op.Base)} base geometries)" for op in operations]
+                items = []
+                for op in operations:
+                    base_count = len(op.Base) if hasattr(op, 'Base') else 0
+                    if base_count == 0:
+                        items.append(f"{op.Label} (no base - will auto-discover)")
+                    else:
+                        items.append(f"{op.Label} ({base_count} base geometries)")
+                
                 item, ok = QtGui.QInputDialog.getItem(
                     None,
                     "Select Profile to Split",
@@ -215,33 +224,43 @@ class SplitProfileCommand:
         # Debug output
         FreeCAD.Console.PrintMessage(f"\n=== Split Profile Debug ===\n")
         FreeCAD.Console.PrintMessage(f"Operation: {operation.Label}\n")
-        FreeCAD.Console.PrintMessage(f"Base items count: {len(operation.Base)}\n")
+        FreeCAD.Console.PrintMessage(f"Base items count: {len(operation.Base) if operation.Base else 0}\n")
         
         # Count total features across all base items
         total_features = 0
-        for i, base_item in enumerate(operation.Base):
-            obj = base_item[0]
-            features = base_item[1]
-            FreeCAD.Console.PrintMessage(f"  Base item {i}: Object={obj.Label}, Features={features} (count={len(features)})\n")
-            total_features += len(features)
+        if operation.Base:
+            for i, base_item in enumerate(operation.Base):
+                obj = base_item[0]
+                features = base_item[1]
+                FreeCAD.Console.PrintMessage(f"  Base item {i}: Object={obj.Label}, Features={features} (count={len(features)})\n")
+                total_features += len(features)
         
-        FreeCAD.Console.PrintMessage(f"Total features to split: {total_features}\n")
+        FreeCAD.Console.PrintMessage(f"Total features before auto-discovery: {total_features}\n")
+        
+        # Allow operation even if Base is empty - we'll auto-discover in the panel
+        if total_features == 0:
+            FreeCAD.Console.PrintMessage("No explicit base geometries - will attempt auto-discovery from Job Model\n")
+        
         FreeCAD.Console.PrintMessage(f"===========================\n\n")
         
-        # Check if we have something to split - either multiple base items OR one base item with multiple features
-        if len(operation.Base) < 2 and (len(operation.Base) == 0 or len(operation.Base[0][1]) < 2):
-            FreeCAD.Console.PrintWarning(f"Profile {operation.Label} has less than 2 base geometries\n")
+        # Show the split panel (auto-discovery happens in the panel's __init__)
+        FreeCAD.Console.PrintMessage(f"Opening split panel for {operation.Label}\n")
+        panel = SplitProfilePanel.SplitProfilePanel(operation)
+        
+        # After panel initialization, check if we have enough to split
+        if len(panel.split_items) < 2:
+            FreeCAD.Console.PrintWarning(f"Profile {operation.Label} has less than 2 base geometries even after auto-discovery\n")
+            item_count = len(panel.split_items)
             QtGui.QMessageBox.warning(
                 None,
                 "Not Enough Base Geometries",
-                f"The selected Profile '{operation.Label}' only has {len(operation.Base) if hasattr(operation, 'Base') else 0} base geometry.\n\n"
-                "This tool is for splitting Profiles with multiple base geometries."
+                f"The selected Profile '{operation.Label}' only has {item_count} base geometry.\n\n"
+                "This tool is for splitting Profiles with multiple base geometries.\n\n"
+                f"Auto-discovery from the Job Model found {item_count} bottom face(s).\n"
+                "You may need to manually set base geometries in the Profile operation."
             )
             return
         
-        # Show the split panel
-        FreeCAD.Console.PrintMessage(f"Opening split panel for {operation.Label} ({len(operation.Base)} base geometries)\n")
-        panel = SplitProfilePanel.SplitProfilePanel(operation)
         FreeCADGui.Control.showDialog(panel)
     
     def IsActive(self):
