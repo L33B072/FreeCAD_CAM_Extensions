@@ -188,23 +188,28 @@ class SplitProfilePanel:
         self.apply_tags_checkbox.toggled.connect(self.onTagsCheckboxToggled)
         dressup_layout.addWidget(self.apply_tags_checkbox)
         
+        # Get document units for default values
+        import PathScripts.PathUtils as PathUtils
+        job = PathUtils.findParentJob(self.operation)
+        units_suffix, units_multiplier = self.getDocumentUnits(job)
+        
         # Tag settings (initially hidden)
         self.tag_settings_widget = QtGui.QWidget()
         tag_settings_layout = QtGui.QFormLayout()
         tag_settings_layout.setContentsMargins(20, 5, 5, 5)  # Indent settings
         
         self.tag_width_spin = QtGui.QDoubleSpinBox()
-        self.tag_width_spin.setRange(0.1, 100.0)
-        self.tag_width_spin.setValue(5.0)
+        self.tag_width_spin.setRange(0.001 * units_multiplier, 100.0 * units_multiplier)
+        self.tag_width_spin.setValue(5.0 * units_multiplier)  # 5mm or equivalent
         self.tag_width_spin.setDecimals(3)
-        self.tag_width_spin.setSuffix(" mm")
+        self.tag_width_spin.setSuffix(units_suffix)
         tag_settings_layout.addRow("Tag Width:", self.tag_width_spin)
         
         self.tag_height_spin = QtGui.QDoubleSpinBox()
-        self.tag_height_spin.setRange(0.1, 100.0)
-        self.tag_height_spin.setValue(2.0)
+        self.tag_height_spin.setRange(0.001 * units_multiplier, 100.0 * units_multiplier)
+        self.tag_height_spin.setValue(2.0 * units_multiplier)  # 2mm or equivalent
         self.tag_height_spin.setDecimals(3)
-        self.tag_height_spin.setSuffix(" mm")
+        self.tag_height_spin.setSuffix(units_suffix)
         tag_settings_layout.addRow("Tag Height:", self.tag_height_spin)
         
         self.tag_angle_spin = QtGui.QDoubleSpinBox()
@@ -246,6 +251,30 @@ class SplitProfilePanel:
     def onTagsCheckboxToggled(self, checked):
         """Toggle visibility of tag settings when checkbox is toggled"""
         self.tag_settings_widget.setVisible(checked)
+    
+    def getDocumentUnits(self, job):
+        """
+        Get the document's unit system and return suffix and multiplier.
+        
+        Returns:
+            tuple: (suffix_string, multiplier_from_mm)
+                   e.g., (" mm", 1.0) or (" in", 0.0393701)
+        """
+        # Try to get units from the Job
+        if job and hasattr(job, 'Units'):
+            units = job.Units
+        else:
+            # Fallback: check document units
+            try:
+                units = FreeCAD.ActiveDocument.Units
+            except:
+                units = 0  # Default to metric
+        
+        # Units: 0 = Metric (mm), 1 = Imperial (inches)
+        if units == 1:  # Imperial
+            return (" in", 0.0393701)  # 1mm = 0.0393701 inches
+        else:  # Metric (default)
+            return (" mm", 1.0)
     
     def splitProfile(self):
         """Split the Profile operation into separate operations"""
@@ -616,8 +645,16 @@ class SplitProfilePanel:
                     traceback.print_exc()
             
             # Configure tag properties from UI
-            tag_dressup.Width = self.tag_width_spin.value()
-            tag_dressup.Height = self.tag_height_spin.value()
+            # Spinbox values are in document units, but FreeCAD tag properties expect mm
+            # Get units info to convert back to mm
+            units_suffix, units_multiplier = self.getDocumentUnits(job)
+            
+            # Convert from user units to mm (divide by multiplier)
+            width_mm = self.tag_width_spin.value() / units_multiplier
+            height_mm = self.tag_height_spin.value() / units_multiplier
+            
+            tag_dressup.Width = width_mm
+            tag_dressup.Height = height_mm
             tag_dressup.Angle = self.tag_angle_spin.value()
             
             # Generate tag positions
@@ -686,15 +723,12 @@ class SplitProfilePanel:
             # Recompute to generate the path with tags
             tag_dressup.recompute()
             
-            FreeCAD.Console.PrintMessage(f"      ✓ Tags: W={tag_dressup.Width}mm, H={tag_dressup.Height}mm, Angle={tag_dressup.Angle}°\n")
+            FreeCAD.Console.PrintMessage(f"      ✓ Tags: W={tag_dressup.Width}, H={tag_dressup.Height}, Angle={tag_dressup.Angle}\n")
             
             return tag_dressup
             
         except Exception as e:
             FreeCAD.Console.PrintError(f"    Failed to apply tags to {base_operation.Label}: {e}\n")
-            import traceback
-            traceback.print_exc()
-            return None
             import traceback
             traceback.print_exc()
             return None
