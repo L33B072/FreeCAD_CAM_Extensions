@@ -138,7 +138,7 @@ FreeCAD_CAM_Extensions/
 
 ## Installation
 
-### Method 1: Via Addon Manager (Recommended)
+### Method 1 (Coming Soon / Skip to Method 2 for now): Via Addon Manager (Recommended)
 1. Open FreeCAD
 2. Go to **Tools → Addon Manager**
 3. Search for "CAM Extensions"
