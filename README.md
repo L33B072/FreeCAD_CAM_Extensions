@@ -149,9 +149,10 @@ FreeCAD_CAM_Extensions/
 #### Step 1: Install the Extension - video here: https://www.youtube.com/watch?v=XfOUsQhWX5E&t=33s
 1. Download or clone this repository
 2. **Option A - Automated (Windows):**
-   - Open PowerShell in the repository folder
-   - Run: `.\deploy_to_freecad.ps1`
-   - This automatically copies all files to the correct location
+   - **Easiest:** Double-click `deploy.bat` (bypasses PowerShell execution policy)
+   - **Alternative:** Open PowerShell in the repository folder and run `.\deploy_to_freecad.ps1`
+   - Both methods automatically copy all files to the correct location
+   - **Note:** If PowerShell won't run the .ps1 file due to execution policy, use the .bat file instead
 3. **Option B - Manual:**
    - Copy the entire folder to your FreeCAD Mod directory:
      - **Windows (FreeCAD 1.0+)**: `C:\Users\[YourUsername]\AppData\Roaming\FreeCAD\v1-1\Mod\FreeCAD_CAM_Extensions`

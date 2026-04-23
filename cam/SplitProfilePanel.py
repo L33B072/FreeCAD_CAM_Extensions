@@ -16,6 +16,7 @@ complete control over the cutting order.
 
 import FreeCAD
 import FreeCADGui
+import Part
 from PySide import QtCore, QtGui
 
 
@@ -105,12 +106,18 @@ class SplitProfilePanel:
                 FreeCAD.Console.PrintError("Could not auto-discover any base geometries\n")
         
         # Build split items list from Base
-        for base_item in self.operation.Base:
+        FreeCAD.Console.PrintMessage(f"\n=== Building split items from Base ===\n")
+        FreeCAD.Console.PrintMessage(f"Base has {len(self.operation.Base)} item(s)\n")
+        for idx, base_item in enumerate(self.operation.Base):
             obj = base_item[0]
             features = base_item[1]
+            FreeCAD.Console.PrintMessage(f"  Base[{idx}]: {obj.Label} with {len(features)} feature(s): {features}\n")
             # If multiple features in one base item, split them individually
             for feature in features:
                 self.split_items.append((obj, feature))
+                FreeCAD.Console.PrintMessage(f"    → Added split item: ({obj.Label}, {feature})\n")
+        FreeCAD.Console.PrintMessage(f"Total split items: {len(self.split_items)}\n")
+        FreeCAD.Console.PrintMessage(f"=====================================\n\n")
         
         self.form = self.createUI()
         
@@ -263,17 +270,22 @@ class SplitProfilePanel:
         # Try to get units from the Job
         if job and hasattr(job, 'Units'):
             units = job.Units
+            FreeCAD.Console.PrintMessage(f"[Units Debug] Job.Units = {units}\n")
         else:
             # Fallback: check document units
             try:
                 units = FreeCAD.ActiveDocument.Units
+                FreeCAD.Console.PrintMessage(f"[Units Debug] Document.Units = {units}\n")
             except:
                 units = 0  # Default to metric
+                FreeCAD.Console.PrintMessage(f"[Units Debug] Defaulting to metric\n")
         
         # Units: 0 = Metric (mm), 1 = Imperial (inches)
         if units == 1:  # Imperial
+            FreeCAD.Console.PrintMessage(f"[Units Debug] Using Imperial: suffix=' in', multiplier=0.0393701\n")
             return (" in", 0.0393701)  # 1mm = 0.0393701 inches
         else:  # Metric (default)
+            FreeCAD.Console.PrintMessage(f"[Units Debug] Using Metric: suffix=' mm', multiplier=1.0\n")
             return (" mm", 1.0)
     
     def splitProfile(self):
@@ -314,58 +326,70 @@ class SplitProfilePanel:
             
             FreeCAD.Console.PrintMessage(f"\nSplitting Profile '{self.operation.Label}' into {len(self.split_items)} operations...\n")
             
+            operation_index = 1  # Track overall operation numbering
+            
             for i, split_item in enumerate(self.split_items):
                 obj = split_item[0]
                 feature = split_item[1]
                 
-                # Create new Profile operation
-                import Path.Op.Profile as PathProfile
-                new_op = PathProfile.Create('Profile', obj=None, parentJob=job)
+                # Check if this face has holes (multiple wires)
+                face = self.getFaceFromFeature(obj, feature)
+                wires = face.Wires if face else []
                 
-                # Set the base geometry (just this one feature)
-                # Base format: [(object, (feature_name,))]
-                new_op.Base = [(obj, (feature,))]
-                
-                # Copy all properties from original
-                self.copyProperties(self.operation, new_op)
-                
-                # Explicitly ensure ArcFeedRatePercent is copied (if it exists)
-                # This handles cases where the property might not exist on new_op yet
-                if hasattr(self.operation, 'ArcFeedRatePercent'):
-                    if not hasattr(new_op, 'ArcFeedRatePercent'):
-                        # Add the property if it doesn't exist
-                        try:
-                            new_op.addProperty(
-                                "App::PropertyPercent",
-                                "ArcFeedRatePercent",
-                                "Path",
-                                "Feed rate percentage for arc moves (G2/G3). Set to 100% for normal speed, lower values slow down arcs."
+                if face and len(wires) > 1:
+                    # Multi-wire face (has holes) - create separate operations using edge lists
+                    FreeCAD.Console.PrintMessage(f"\n  Face {feature} has {len(wires)} wires (outer + {len(wires)-1} holes)\n")
+                    FreeCAD.Console.PrintMessage(f"    Extracting edges for each wire...\n")
+                    
+                    # Sort wires by area to identify outer vs inner
+                    # Outer wire has the largest area
+                    wire_areas = [(w, abs(Part.Face(w).Area)) for w in wires]
+                    wire_areas.sort(key=lambda x: x[1], reverse=True)
+                    
+                    outer_wire = wire_areas[0][0]
+                    inner_wires = [w for w, _ in wire_areas[1:]]
+                    
+                    # Get edge names for outer wire
+                    outer_edges = self.getEdgeNamesFromWire(obj, outer_wire)
+                    
+                    if outer_edges:
+                        # Create operation for outer perimeter using edges
+                        # Keep original Side/Direction from user's settings
+                        outer_op = self.createSplitOperationFromEdges(
+                            obj, outer_edges, job, base_name, operation_index,
+                            suffix="_Outer",
+                            direction=self.operation.Direction,
+                            side=self.operation.Side
+                        )
+                        if outer_op:
+                            new_operations.append(outer_op)
+                            operation_index += 1
+                    
+                    # Get opposite settings for inner holes
+                    opposite_side = "Inside" if self.operation.Side == "Outside" else "Outside"
+                    opposite_direction = "CW" if self.operation.Direction == "CCW" else "CCW"
+                    
+                    # Create operations for each inner hole using edges
+                    for hole_idx, inner_wire in enumerate(inner_wires):
+                        inner_edges = self.getEdgeNamesFromWire(obj, inner_wire)
+                        
+                        if inner_edges:
+                            suffix = f"_Inner_{hole_idx+1}" if len(inner_wires) > 1 else "_Inner"
+                            inner_op = self.createSplitOperationFromEdges(
+                                obj, inner_edges, job, base_name, operation_index,
+                                suffix=suffix,
+                                direction=opposite_direction,
+                                side=opposite_side
                             )
-                        except:
-                            pass  # Property might already exist
-                    # Copy the value
-                    try:
-                        new_op.ArcFeedRatePercent = self.operation.ArcFeedRatePercent
-                        FreeCAD.Console.PrintMessage(f"    ✓ ArcFeedRatePercent: {self.operation.ArcFeedRatePercent}%\n")
-                    except Exception as e:
-                        FreeCAD.Console.PrintWarning(f"    Warning: Could not copy ArcFeedRatePercent: {e}\n")
-                
-                # Set the name
-                if self.rename_checkbox.isChecked():
-                    new_op.Label = f"{base_name}_{i+1:03d}"
+                            if inner_op:
+                                new_operations.append(inner_op)
+                                operation_index += 1
                 else:
-                    new_op.Label = f"{self.operation.Label}_{i+1}"
-                
-                # Ensure ViewObject is properly set up for editing
-                if hasattr(new_op, 'ViewObject') and new_op.ViewObject:
-                    # Set properties that might affect editability
-                    try:
-                        new_op.ViewObject.Proxy = self.operation.ViewObject.Proxy
-                    except:
-                        pass
-                
-                new_operations.append(new_op)
-                FreeCAD.Console.PrintMessage(f"  Created: {new_op.Label} for {obj.Label}-{feature}\n")
+                    # Simple face with single wire - create normal operation
+                    new_op = self.createSplitOperation(obj, feature, job, base_name, operation_index)
+                    if new_op:
+                        new_operations.append(new_op)
+                        operation_index += 1
             
             # Only manually manage operations group if NOT applying tags
             # If applying tags, the dressup application will handle operation management
@@ -453,6 +477,15 @@ class SplitProfilePanel:
             # Apply tag dressups if requested
             if self.apply_tags_checkbox.isChecked():
                 FreeCAD.Console.PrintMessage("\n  Applying tag dressups...\n")
+                
+                # Debug: Check for duplicates before tag application
+                ops_before = list(job.Operations.Group)
+                FreeCAD.Console.PrintMessage(f"    Operations before tags: {len(ops_before)} total\n")
+                for op in ops_before:
+                    count = ops_before.count(op)
+                    if count > 1:
+                        FreeCAD.Console.PrintWarning(f"      WARNING: {op.Label} appears {count} times!\n")
+                
                 try:
                     # Store references to operations that will be replaced by dressups
                     operations_to_dressup = list(new_operations)
@@ -462,12 +495,24 @@ class SplitProfilePanel:
                         dressuped_op = self.applyTagDressup(op, job)
                         if dressuped_op:
                             dressuped_operations.append(dressuped_op)
+                        else:
+                            # If tag dressup failed, keep the original operation
+                            dressuped_operations.append(op)
                     
                     # Update the new_operations list to reference dressups instead of base operations
                     # This ensures the success message and any further processing uses the dressups
                     new_operations = dressuped_operations
                     
                     FreeCAD.Console.PrintMessage(f"  ✓ Applied tags to {len(dressuped_operations)} operations\n")
+                    
+                    # Debug: Check for duplicates after tag application
+                    ops_after = list(job.Operations.Group)
+                    FreeCAD.Console.PrintMessage(f"    Operations after tags: {len(ops_after)} total\n")
+                    for op in ops_after:
+                        count = ops_after.count(op)
+                        if count > 1:
+                            FreeCAD.Console.PrintWarning(f"      WARNING: {op.Label} appears {count} times!\n")
+                    
                 except Exception as e:
                     FreeCAD.Console.PrintError(f"  Error applying tag dressups: {e}\n")
                     import traceback
@@ -614,17 +659,27 @@ class SplitProfilePanel:
             import Path.Dressup.Tags as PathDressupTag
             import PathScripts.PathUtils as PathUtils
             
-            # Create the tag dressup using FreeCAD's standard pattern
+            # Create the tag dressup using FreeCAD's Create function
+            # This automatically handles setup and generates default tag positions
             tag_name = f"{base_operation.Label}_Tags"
             FreeCAD.Console.PrintMessage(f"    Creating {tag_name}...\n")
             
             doc = FreeCAD.ActiveDocument
             
-            # Create the dressup object
-            tag_dressup = doc.addObject("Path::FeaturePython", tag_name)
+            # CRITICAL: Ensure the base operation has a valid Path before creating tag dressup
+            # Force recompute to generate the toolpath
+            FreeCAD.Console.PrintMessage(f"      Generating toolpath for {base_operation.Label}...\n")
+            base_operation.recompute(True)  # Force recompute
+            doc.recompute()  # Recompute document
             
-            # Initialize the dressup proxy (this sets up Base property and links)
-            PathDressupTag.ObjectTagDressup(tag_dressup, base_operation)
+            # Verify the base operation has a valid path
+            if not hasattr(base_operation, 'Path') or not base_operation.Path:
+                FreeCAD.Console.PrintWarning(f"      Warning: Base operation has no valid Path, skipping tags\n")
+                return None
+            
+            # Use FreeCAD's Create function which handles everything properly
+            # This creates the object, sets up the proxy, and generates initial tags
+            tag_dressup = PathDressupTag.Create(base_operation, tag_name)
             
             # Verify Base property is set correctly
             if hasattr(tag_dressup, 'Base'):
@@ -632,13 +687,14 @@ class SplitProfilePanel:
             else:
                 FreeCAD.Console.PrintWarning(f"      Warning: Base property not found on tag_dressup\n")
             
-            # Set up the ViewProvider for proper tree display
+            # Set up the ViewProvider for proper tree display and double-click behavior
             if FreeCAD.GuiUp:
                 try:
                     import Path.Dressup.Gui.Tags as PathDressupTagGui
-                    # Assign the ViewProvider to ViewObject.Proxy (not just calling the constructor)
+                    # Explicitly assign the ViewProvider to ViewObject.Proxy
+                    # This ensures proper icon, tree nesting, and Holding Tags dialog on double-click
                     tag_dressup.ViewObject.Proxy = PathDressupTagGui.PathDressupTagViewProvider(tag_dressup.ViewObject)
-                    FreeCAD.Console.PrintMessage(f"      ✓ ViewProvider assigned to ViewObject.Proxy\n")
+                    FreeCAD.Console.PrintMessage(f"      ✓ ViewProvider assigned\n")
                 except Exception as e:
                     FreeCAD.Console.PrintWarning(f"      Warning: Could not set ViewProvider: {e}\n")
                     import traceback
@@ -657,51 +713,37 @@ class SplitProfilePanel:
             tag_dressup.Height = height_mm
             tag_dressup.Angle = self.tag_angle_spin.value()
             
-            # Generate tag positions
-            # We need to generate actual positions, not just set a count
+            # Generate tag positions with the requested count
             tag_count = self.tag_count_spin.value()
             
-            # Trigger path generation first so we have a path to work with
-            tag_dressup.Proxy.execute(tag_dressup)
+            try:
+                # Setup first, then generate tags
+                tag_dressup.Proxy.setup(tag_dressup, generate=False)
+                tag_dressup.Proxy.generateTags(tag_dressup, tag_count)
+                
+                # Verify positions were created
+                if hasattr(tag_dressup, 'Positions') and len(tag_dressup.Positions) > 0:
+                    FreeCAD.Console.PrintMessage(f"      ✓ Generated {len(tag_dressup.Positions)} tag positions\n")
+                else:
+                    FreeCAD.Console.PrintWarning(f"      Warning: No tag positions generated\n")
+            except Exception as e:
+                FreeCAD.Console.PrintWarning(f"      Warning: Could not generate tags: {e}\n")
+                import traceback
+                traceback.print_exc()
             
-            # Now generate tag positions using the tag dressup's methods
-            if hasattr(tag_dressup.Proxy, 'generateTags'):
-                try:
-                    # Some versions use generateTags method
-                    tag_dressup.Proxy.generateTags(tag_dressup, tag_count)
-                    FreeCAD.Console.PrintMessage(f"      ✓ Generated {tag_count} tag positions\n")
-                except Exception as e:
-                    FreeCAD.Console.PrintWarning(f"      Warning: Could not auto-generate tags: {e}\n")
-            elif hasattr(tag_dressup, 'Positions'):
-                # If no auto-generation, at least initialize empty positions list
-                tag_dressup.Positions = []
-                FreeCAD.Console.PrintMessage(f"      Note: Tag positions initialized empty (edit manually to add)\n")
-            
-            # Use FreeCAD's Job.addOperation to properly nest the dressup
-            # This handles:
-            # - Removing base_operation from Job.Operations.Group
-            # - Adding tag_dressup to Job.Operations.Group  
-            # - Hiding base_operation's ViewObject
-            # - Proper tree nesting
-            FreeCAD.Console.PrintMessage(f"      Adding to Job operations...\n")
+            # PathDressupTag.Create() automatically adds the tag to the job
+            # We just need to remove the base operation from the group
+            FreeCAD.Console.PrintMessage(f"      Managing Job operations...\n")
             
             # Get current operations group
             operations_group = list(job.Operations.Group)
             
-            # Find and replace base_operation with tag_dressup
+            # Remove base operation if it's in the group
+            # The tag was already added by Create()
             if base_operation in operations_group:
-                base_index = operations_group.index(base_operation)
-                operations_group[base_index] = tag_dressup
-                
-                # Update the Job's operations group
+                operations_group.remove(base_operation)
                 job.Operations.Group = operations_group
-                
-                FreeCAD.Console.PrintMessage(f"      ✓ Replaced {base_operation.Label} with {tag_dressup.Label} in Job\n")
-            else:
-                # Base operation not in group, just add the tag dressup
-                operations_group.append(tag_dressup)
-                job.Operations.Group = operations_group
-                FreeCAD.Console.PrintMessage(f"      ✓ Added {tag_dressup.Label} to Job\n")
+                FreeCAD.Console.PrintMessage(f"      ✓ Removed {base_operation.Label} from Job\n")
             
             # Hide the base operation
             if hasattr(base_operation, 'ViewObject') and base_operation.ViewObject:
@@ -711,6 +753,8 @@ class SplitProfilePanel:
             # Verify the operation was added and base was removed
             if tag_dressup in job.Operations.Group:
                 FreeCAD.Console.PrintMessage(f"      ✓ Tag dressup in Job operations\n")
+            else:
+                FreeCAD.Console.PrintWarning(f"      Warning: Tag dressup NOT in Job operations!\n")
             if base_operation not in job.Operations.Group:
                 FreeCAD.Console.PrintMessage(f"      ✓ Base profile removed from Job operations\n")
             else:
@@ -729,6 +773,227 @@ class SplitProfilePanel:
             
         except Exception as e:
             FreeCAD.Console.PrintError(f"    Failed to apply tags to {base_operation.Label}: {e}\n")
+            import traceback
+            traceback.print_exc()
+            return None
+    
+    def getFaceFromFeature(self, obj, feature_name):
+        """Get the actual Face object from an object and feature name"""
+        try:
+            # Feature names are like "Face6", "Face460", etc.
+            if hasattr(obj, 'Shape') and obj.Shape:
+                # Extract face index from feature name (e.g., "Face6" -> 6)
+                if feature_name.startswith('Face'):
+                    face_index = int(feature_name[4:]) - 1  # FreeCAD uses 1-based indexing
+                    if 0 <= face_index < len(obj.Shape.Faces):
+                        return obj.Shape.Faces[face_index]
+        except Exception as e:
+            FreeCAD.Console.PrintWarning(f"    Warning: Could not get face {feature_name}: {e}\n")
+        return None
+    
+    def getEdgeNamesFromWire(self, obj, wire):
+        """
+        Find the edge names in obj.Shape that correspond to edges in the given wire.
+        
+        Args:
+            obj: The model object
+            wire: The Wire object to find edges for
+            
+        Returns:
+            Tuple of edge names (e.g., ('Edge1', 'Edge2', 'Edge3'))
+        """
+        try:
+            if not hasattr(obj, 'Shape') or not obj.Shape:
+                return ()
+            
+            edge_names = []
+            wire_edges = wire.Edges
+            
+            # For each edge in the wire, find matching edge in the shape
+            for wire_edge in wire_edges:
+                # Find the edge in obj.Shape.Edges that matches this wire edge
+                for i, shape_edge in enumerate(obj.Shape.Edges):
+                    # Compare edges by checking if they're the same (geometric comparison)
+                    if self.edgesMatch(wire_edge, shape_edge):
+                        edge_name = f"Edge{i+1}"  # FreeCAD uses 1-based indexing
+                        edge_names.append(edge_name)
+                        break
+            
+            return tuple(edge_names)
+            
+        except Exception as e:
+            FreeCAD.Console.PrintWarning(f"    Warning: Could not extract edges from wire: {e}\n")
+            return ()
+    
+    def edgesMatch(self, edge1, edge2, tolerance=1e-7):
+        """Check if two edges are geometrically equivalent"""
+        try:
+            # Compare by checking if vertices are at same positions
+            if len(edge1.Vertexes) != len(edge2.Vertexes):
+                return False
+            
+            # Check if all vertices match (within tolerance)
+            for v1, v2 in zip(edge1.Vertexes, edge2.Vertexes):
+                if not v1.Point.isEqual(v2.Point, tolerance):
+                    return False
+            
+            return True
+        except:
+            return False
+    
+    def createSplitOperationFromEdges(self, obj, edges, job, base_name, index, suffix="", direction=None, side=None):
+        """
+        Create a Profile operation using a list of edges instead of a face.
+        
+        Args:
+            obj: The model object
+            edges: Tuple of edge names (e.g., ('Edge1', 'Edge2', 'Edge3'))
+            job: The parent Job
+            base_name: Base name for the operation
+            index: Operation index for numbering
+            suffix: Optional suffix for the name
+            direction: Direction ("CW" or "CCW")
+            side: Side ("Inside" or "Outside")
+            
+        Returns:
+            The created operation, or None if failed
+        """
+        try:
+            import Path.Op.Profile as PathProfile
+            
+            # Create new Profile operation
+            new_op = PathProfile.Create('Profile', obj=None, parentJob=job)
+            
+            # Set the base geometry using edges
+            # Base format: [(object, (edge_names...))]
+            new_op.Base = [(obj, edges)]
+            
+            # Copy all properties from original
+            self.copyProperties(self.operation, new_op)
+            
+            # Override Direction and Side if specified
+            if direction:
+                new_op.Direction = direction
+            if side:
+                new_op.Side = side
+            
+            # Explicitly ensure ArcFeedRatePercent is copied
+            if hasattr(self.operation, 'ArcFeedRatePercent'):
+                if not hasattr(new_op, 'ArcFeedRatePercent'):
+                    try:
+                        new_op.addProperty(
+                            "App::PropertyPercent",
+                            "ArcFeedRatePercent",
+                            "Path",
+                            "Feed rate percentage for arc moves (G2/G3). Set to 100% for normal speed, lower values slow down arcs."
+                        )
+                    except:
+                        pass
+                try:
+                    new_op.ArcFeedRatePercent = self.operation.ArcFeedRatePercent
+                except Exception as e:
+                    FreeCAD.Console.PrintWarning(f"    Warning: Could not copy ArcFeedRatePercent: {e}\n")
+            
+            # Set the name
+            if self.rename_checkbox.isChecked():
+                new_op.Label = f"{base_name}_{index:03d}{suffix}"
+            else:
+                new_op.Label = f"{self.operation.Label}_{index}{suffix}"
+            
+            # Ensure ViewObject is properly set up
+            if hasattr(new_op, 'ViewObject') and new_op.ViewObject:
+                try:
+                    new_op.ViewObject.Proxy = self.operation.ViewObject.Proxy
+                except:
+                    pass
+            
+            # Log creation
+            direction_info = f" ({direction}, {side})" if direction else ""
+            edge_count = len(edges)
+            FreeCAD.Console.PrintMessage(f"    Created: {new_op.Label} with {edge_count} edges{direction_info}\n")
+            
+            return new_op
+            
+        except Exception as e:
+            FreeCAD.Console.PrintError(f"    Failed to create operation from edges: {e}\n")
+            import traceback
+            traceback.print_exc()
+            return None
+    
+    def createSplitOperation(self, obj, feature, job, base_name, index, suffix="", direction=None, side=None):
+        """
+        Create a single split Profile operation.
+        
+        Args:
+            obj: The model object
+            feature: The feature name (e.g., "Face6")
+            job: The parent Job
+            base_name: Base name for the operation
+            index: Operation index for numbering
+            suffix: Optional suffix for the name (e.g., "_Outer", "_Inner")
+            direction: Optional override for Direction ("CW" or "CCW")
+            side: Optional override for Side ("Inside" or "Outside")
+        
+        Returns:
+            The created operation, or None if failed
+        """
+        try:
+            import Path.Op.Profile as PathProfile
+            
+            # Create new Profile operation
+            new_op = PathProfile.Create('Profile', obj=None, parentJob=job)
+            
+            # Set the base geometry (just this one feature)
+            # Base format: [(object, (feature_name,))]
+            new_op.Base = [(obj, (feature,))]
+            
+            # Copy all properties from original
+            self.copyProperties(self.operation, new_op)
+            
+            # Override Direction and Side if specified
+            if direction:
+                new_op.Direction = direction
+            if side:
+                new_op.Side = side
+            
+            # Explicitly ensure ArcFeedRatePercent is copied (if it exists)
+            if hasattr(self.operation, 'ArcFeedRatePercent'):
+                if not hasattr(new_op, 'ArcFeedRatePercent'):
+                    try:
+                        new_op.addProperty(
+                            "App::PropertyPercent",
+                            "ArcFeedRatePercent",
+                            "Path",
+                            "Feed rate percentage for arc moves (G2/G3). Set to 100% for normal speed, lower values slow down arcs."
+                        )
+                    except:
+                        pass
+                try:
+                    new_op.ArcFeedRatePercent = self.operation.ArcFeedRatePercent
+                except Exception as e:
+                    FreeCAD.Console.PrintWarning(f"    Warning: Could not copy ArcFeedRatePercent: {e}\n")
+            
+            # Set the name
+            if self.rename_checkbox.isChecked():
+                new_op.Label = f"{base_name}_{index:03d}{suffix}"
+            else:
+                new_op.Label = f"{self.operation.Label}_{index}{suffix}"
+            
+            # Ensure ViewObject is properly set up for editing
+            if hasattr(new_op, 'ViewObject') and new_op.ViewObject:
+                try:
+                    new_op.ViewObject.Proxy = self.operation.ViewObject.Proxy
+                except:
+                    pass
+            
+            # Log creation
+            direction_info = f" ({direction}, {side})" if direction else ""
+            FreeCAD.Console.PrintMessage(f"    Created: {new_op.Label} for {obj.Label}-{feature}{direction_info}\n")
+            
+            return new_op
+            
+        except Exception as e:
+            FreeCAD.Console.PrintError(f"    Failed to create operation for {feature}: {e}\n")
             import traceback
             traceback.print_exc()
             return None
