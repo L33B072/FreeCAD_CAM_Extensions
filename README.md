@@ -22,6 +22,7 @@ Enhanced features for FreeCAD's CAM (Path) workbench.
 - **Like Fusion 360's workflow** - Similar to creating individual contour operations
 - **Most reliable solution** - When you need exact control over cutting sequence
 - **Reorder in tree** - After splitting, simply drag operations in the tree to change cutting order
+https://www.youtube.com/watch?v=JaEFjKo7rG4&t=1s
 
 ### 3. Arc Feed Rate Control
 - **Independent arc speed control** - Set different feed rates for arc moves (G2/G3) vs linear moves (G1)
