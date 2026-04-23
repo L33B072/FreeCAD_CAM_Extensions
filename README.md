@@ -146,7 +146,7 @@ FreeCAD_CAM_Extensions/
 
 ### Method 2: Manual Installation
 
-#### Step 1: Install the Extension
+#### Step 1: Install the Extension - video here: https://www.youtube.com/watch?v=XfOUsQhWX5E&t=33s
 1. Download or clone this repository
 2. **Option A - Automated (Windows):**
    - Open PowerShell in the repository folder
