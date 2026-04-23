@@ -1,7 +1,8 @@
 # Deploy FreeCAD CAM Extensions to FreeCAD Mod Directory
 # Run this script after making changes to update the active extension
 
-$source = "c:\FreeCAD_CAM_Extensions"
+# Use the script's directory as the source (works regardless of where repo is located)
+$source = $PSScriptRoot
 $dest = "$env:APPDATA\FreeCAD\v1-1\Mod\FreeCAD_CAM_Extensions"
 
 Write-Host "Deploying FreeCAD CAM Extensions..." -ForegroundColor Cyan
