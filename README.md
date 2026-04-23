@@ -1,7 +1,7 @@
 # FreeCAD CAM Extensions
 
 Enhanced features for FreeCAD's CAM (Path) workbench.
-
+https://www.youtube.com/channel/UCljgLt4K_QD_PLiPbYliBug
 ## Features
 
 ### 1. Operation Variables Viewer
